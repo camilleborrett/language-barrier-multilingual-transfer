@@ -69,7 +69,7 @@ parser.add_argument('-augment', '--augmentation_nmt', type=str,
                     help='Whether and how to augment the data with neutral machine translation (NMT).')
 
 parser.add_argument('-ds', '--dataset', type=str,
-                    help='Name of dataset. Can be one of: "sentiment-news-econ" "coronanet" "cap-us-court" "cap-sotu" "manifesto-8" "manifesto-military" "manifesto-protectionism" "manifesto-morality"')
+                    help='Name of dataset. Can be one of: "manifesto-8" ')
 parser.add_argument('-samp', '--sample_interval', type=int, nargs='+',
                     help='Interval of sample sizes to test.')
 parser.add_argument('-m', '--method', type=str,
@@ -128,7 +128,7 @@ AUGMENTATION = args.augmentation_nmt
 N_SAMPLE_DEV = args.sample_interval   # [100, 500, 1000, 2500, 5000, 10_000]  999_999 = full dataset  # cannot include 0 here to find best hypothesis template for zero-shot, because 0-shot assumes no dev set
 
 # decide on model to run
-METHOD = args.method  # "standard_dl", "nli", "nsp", "classical_ml"
+METHOD = args.method  # "standard_dl", "nli", "classical_ml"
 MODEL_NAME = args.model  # "SVM"
 
 DISABLE_TQDM = args.disable_tqdm
@@ -147,7 +147,6 @@ if "manifesto-8" in DATASET_NAME:
   df_cl = pd.read_csv("./data-clean/df_manifesto_all.csv", index_col="idx")
   df_train = pd.read_csv("./data-clean/df_manifesto_train_trans_embed.csv", index_col="idx")
   df_test = pd.read_csv("./data-clean/df_manifesto_test_trans_embed.csv", index_col="idx")
-
 elif DATASET_NAME == "manifesto-military":
   df_cl = pd.read_csv("./data-clean/df_manifesto_military_cl.csv", index_col="idx")
   df_train = pd.read_csv("./data-clean/df_manifesto_military_train.csv", index_col="idx")
@@ -176,6 +175,7 @@ else:
 
 print(DATASET_NAME)
 
+
 ## fill na for non translated texts to facilitate downstream analysis
 df_train["language_iso_trans"] = [language_iso if pd.isna(language_iso_trans) else language_iso_trans for language_iso, language_iso_trans in zip(df_train.language_iso, df_train.language_iso_trans)]
 df_train["text_original_trans"] = [text_original if pd.isna(text_original_trans) else text_original_trans for text_original, text_original_trans in zip(df_train.text_original, df_train.text_original_trans)]
@@ -185,11 +185,28 @@ df_test["text_original_trans"] = [text_original if pd.isna(text_original_trans) 
 
 
 ## reduce max sample size interval list to fit to max df_train length
-n_sample_dev_filt = [sample for sample in N_SAMPLE_DEV if sample < len(df_train)]
+n_sample_dev_filt = [sample for sample in N_SAMPLE_DEV if sample <= len(df_train)]
 if len(df_train) < N_SAMPLE_DEV[-1]:
   n_sample_dev_filt = n_sample_dev_filt + [len(df_train)]
+  if len(n_sample_dev_filt) > 1:
+    if n_sample_dev_filt[-1] == n_sample_dev_filt[-2]:  # if last two sample sizes are duplicates, delete the last one
+      n_sample_dev_filt = n_sample_dev_filt[:-1]
 N_SAMPLE_DEV = n_sample_dev_filt
 print("Final sample size intervals: ", N_SAMPLE_DEV)
+
+"""
+# tests for code above
+N_SAMPLE_DEV = [1000]
+len_df_train = 500
+n_sample_dev_filt = [sample for sample in N_SAMPLE_DEV if sample <= len_df_train]
+if len_df_train < N_SAMPLE_DEV[-1]:
+  n_sample_dev_filt = n_sample_dev_filt + [len_df_train]
+  if len(n_sample_dev_filt) > 1:
+    if n_sample_dev_filt[-1] == n_sample_dev_filt[-2]:  # if last two sample sizes are duplicates, delete the last one
+      n_sample_dev_filt = n_sample_dev_filt[:-1]
+N_SAMPLE_DEV = n_sample_dev_filt
+print("Final sample size intervals: ", N_SAMPLE_DEV)"""
+
 
 
 LABEL_TEXT_ALPHABETICAL = np.sort(df_cl.label_text.unique())
@@ -309,7 +326,7 @@ if "text_following" in df_cl.columns:
 ### parameters for final tests with best hyperparams
 ## load existing studies with hyperparams
 # selective load one decent set of hps for testing
-hp_study_dic = joblib.load("/Users/moritzlaurer/Dropbox/PhD/Papers/nli/snellius/NLI-experiments/results/manifesto-8/optuna_study_SVM_tfidf_01000samp_20220713.pkl")
+hp_study_dic = joblib.load("/Users/moritzlaurer/Dropbox/PhD/Papers/nli/snellius/NLI-experiments/results/manifesto-8/optuna_study_SVM_tfidf_01000samp_20221006.pkl")
 
 
 """hp_study_dic = {}
@@ -481,6 +498,7 @@ for lang, n_max_sample, hyperparams, hypothesis_template in tqdm.tqdm(zip(LANGUA
   f1_micro_lst = []
   accuracy_balanced_lst = []
   # randomness stability loop. Objective: calculate F1 across N samples to test for influence of different (random) samples
+  np.random.seed(SEED_GLOBAL)
   for random_seed_sample in tqdm.tqdm(np.random.choice(range(1000), size=CROSS_VALIDATION_REPETITIONS_FINAL), desc="iterations for std", leave=True):
 
     ## sampling
@@ -670,8 +688,9 @@ print("Run done.")
 
 
 
-"""
 
+
+"""
 ##### single lang experiments
 ### classical_ml
 ## no-NMT-single, sentence-embed-multi
@@ -792,6 +811,7 @@ print("Run done.")
 
 
 ##### tests with fairlearn
+"""
 import sklearn.metrics as skm
 
 df_test_predictions = df_test_lang.copy(deep=True)
@@ -851,6 +871,7 @@ print("## Metrics by group:\n", grouped_metric.by_group, "\n")  #.to_dict()
 #print("## Metrics max:\n", grouped_metric.group_max(), "\n")
 print("## Metrics difference min-max:\n", grouped_metric.difference(method='between_groups'), "\n")  # to_overall, between_groups  # difference or ratio of the metric values between the best and the worst slice
 #print(grouped_metric.ratio(method='between_groups')) # to_overall, between_group  # difference or ratio of the metric values between the best and the worst slice
+"""
 
 
 """
