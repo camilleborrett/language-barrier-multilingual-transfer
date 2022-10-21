@@ -4,6 +4,7 @@ pandas~=1.5
 numpy~=1.23.1
 scikit-learn~=1.1
 transformers[sentencepiece]~=4.23
+sentence-transformers~=2.2
 joblib~=1.1.0
 tqdm~=4.64.0
 optuna~=3.0

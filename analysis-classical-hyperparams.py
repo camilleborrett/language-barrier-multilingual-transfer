@@ -70,7 +70,7 @@ parser.add_argument('-anchor', '--anchor_language', type=str,
                     help='Anchor language to translate all texts to if not many2many. Default is "en"')
 
 parser.add_argument('-ds', '--dataset', type=str,
-                    help='Name of dataset. Can be one of: "sentiment-news-econ" "coronanet" "cap-us-court" "cap-sotu" "manifesto-8" "manifesto-military" "manifesto-protectionism" "manifesto-morality" "manifesto-nationalway" "manifesto-44" "manifesto-complex"')
+                    help='Name of dataset. Can be one of: "manifesto-8" ')
 parser.add_argument('-samp', '--sample_interval', type=int, nargs='+',
                     help='Interval of sample sizes to test.')
 parser.add_argument('-m', '--method', type=str,
@@ -104,7 +104,7 @@ if EXECUTION_TERMINAL == True:
 elif EXECUTION_TERMINAL == False:
   # parse args if not in terminal, but in script
   args = parser.parse_args(["--n_trials", "30", "--n_trials_sampling", "20", "--n_trials_pruning", "15", "--n_cross_val_hyperparam", "2",
-                            "--languages", "en", "de", "es", "fr", "ja", "tr", "ru",  # "ko"
+                            "--languages", "en", "de", "es", "fr", "tr", "ru",  # "ko", "ja"
                             "--anchor_language", "en",
                             "--context", "--dataset", "manifesto-8", "--sample_interval", "500",  #"100", "500", "1000", #"2500", "5000", #"10000",
                             "--method", "classical_ml", "--model", "SVM", "--vectorizer", "tfidf",
@@ -128,7 +128,7 @@ N_SAMPLE_DEV = args.sample_interval   # [100, 500, 1000, 2500, 5000, 10_000]  99
 VECTORIZER = args.vectorizer
 
 # decide on model to run
-METHOD = args.method  # "standard_dl", "nli", "nsp", "classical_ml"
+METHOD = args.method  # "standard_dl", "nli", "classical_ml"
 MODEL_NAME = args.model  # "SVM"
 
 DISABLE_TQDM = args.disable_tqdm
@@ -149,7 +149,6 @@ if "manifesto-8" in DATASET_NAME:
   df_cl = pd.read_csv("./data-clean/df_manifesto_all.csv", index_col="idx")
   df_train = pd.read_csv("./data-clean/df_manifesto_train_trans.csv", index_col="idx")
   df_test = pd.read_csv("./data-clean/df_manifesto_test_trans.csv", index_col="idx")
-
 elif DATASET_NAME == "manifesto-military":
   df_cl = pd.read_csv("./data-clean/df_manifesto_military_cl.csv", index_col="idx")
   df_train = pd.read_csv("./data-clean/df_manifesto_military_train.csv", index_col="idx")
@@ -178,6 +177,7 @@ else:
 
 print(DATASET_NAME)
 
+
 ## fill na for non translated texts to facilitate downstream analysis
 df_train["language_iso_trans"] = [language_iso if pd.isna(language_iso_trans) else language_iso_trans for language_iso, language_iso_trans in zip(df_train.language_iso, df_train.language_iso_trans)]
 df_train["text_original_trans"] = [text_original if pd.isna(text_original_trans) else text_original_trans for text_original, text_original_trans in zip(df_train.text_original, df_train.text_original_trans)]
@@ -187,11 +187,27 @@ df_test["text_original_trans"] = [text_original if pd.isna(text_original_trans) 
 
 
 ## reduce max sample size interval list to fit to max df_train length
-n_sample_dev_filt = [sample for sample in N_SAMPLE_DEV if sample < len(df_train)]
+n_sample_dev_filt = [sample for sample in N_SAMPLE_DEV if sample <= len(df_train)]
 if len(df_train) < N_SAMPLE_DEV[-1]:
   n_sample_dev_filt = n_sample_dev_filt + [len(df_train)]
+  if len(n_sample_dev_filt) > 1:
+    if n_sample_dev_filt[-1] == n_sample_dev_filt[-2]:  # if last two sample sizes are duplicates, delete the last one
+      n_sample_dev_filt = n_sample_dev_filt[:-1]
 N_SAMPLE_DEV = n_sample_dev_filt
 print("Final sample size intervals: ", N_SAMPLE_DEV)
+
+"""
+# tests for code above
+N_SAMPLE_DEV = [1000]
+len_df_train = 500
+n_sample_dev_filt = [sample for sample in N_SAMPLE_DEV if sample <= len_df_train]
+if len_df_train < N_SAMPLE_DEV[-1]:
+  n_sample_dev_filt = n_sample_dev_filt + [len_df_train]
+  if len(n_sample_dev_filt) > 1:
+    if n_sample_dev_filt[-1] == n_sample_dev_filt[-2]:  # if last two sample sizes are duplicates, delete the last one
+      n_sample_dev_filt = n_sample_dev_filt[:-1]
+N_SAMPLE_DEV = n_sample_dev_filt
+print("Final sample size intervals: ", N_SAMPLE_DEV)"""
 
 
 LABEL_TEXT_ALPHABETICAL = np.sort(df_cl.label_text.unique())
@@ -210,14 +226,14 @@ assert all(labels_num_via_numeric == labels_num_via_text)
 import sys
 sys.path.insert(0, os.getcwd())
 
-from analysis import helpers
+import helpers
 import importlib  # in case of manual updates in .py file
 importlib.reload(helpers)
 
-from analysis.helpers import data_preparation, compute_metrics_classical_ml, clean_memory
+from helpers import data_preparation, compute_metrics_classical_ml, clean_memory
 
 ### load suitable hypotheses_hyperparameters and text formatting function
-from analysis.hypothesis_hyperparams import hypothesis_hyperparams
+from hypothesis_hyperparams import hypothesis_hyperparams
 
 
 ### load the hypothesis hyperparameters for the respective dataset. For classical_ml this only determines the input text format - sentence with surrounding sentences, or not
@@ -240,10 +256,12 @@ if "context" not in classical_templates:
 df_train_lemma = df_train.copy(deep=True)
 df_test_lemma = df_test.copy(deep=True)
 
-if VECTORIZER == "tfidf":
+"""if VECTORIZER == "tfidf":
     embeddings = False
-elif VECTORIZER == "embeddings":
+elif VECTORIZER == "embeddings-en":
     embeddings = True
+elif VECTORIZER == "embeddings-multi":
+    embeddings = True"""
 
 # ! lemmatization not necessary for tests
 """nlp = spacy.load("en_core_web_lg")

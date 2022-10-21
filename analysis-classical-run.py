@@ -225,14 +225,14 @@ assert all(labels_num_via_numeric == labels_num_via_text)
 import sys
 sys.path.insert(0, os.getcwd())
 
-from analysis import helpers
+import helpers
 import importlib  # in case of manual updates in .py file
 importlib.reload(helpers)
 
-from analysis.helpers import data_preparation, compute_metrics_classical_ml, clean_memory
+from helpers import data_preparation, compute_metrics_classical_ml, clean_memory
 
 ### load suitable hypotheses_hyperparameters and text formatting function
-from analysis.hypothesis_hyperparams import hypothesis_hyperparams
+from hypothesis_hyperparams import hypothesis_hyperparams
 
 
 ### load the hypothesis hyperparameters for the respective dataset. For classical_ml this only determines the input text format - sentence with surrounding sentences, or not

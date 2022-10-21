@@ -221,16 +221,16 @@ assert all(labels_num_via_numeric == labels_num_via_text)
 import sys
 sys.path.insert(0, os.getcwd())
 
-from analysis import helpers
+import helpers
 import importlib  # in case of manual updates in .py file
 importlib.reload(helpers)
 
-from analysis.helpers import format_nli_testset, format_nli_trainset, data_preparation  # custom_train_test_split, custom_train_test_split_sent_overlapp
-from analysis.helpers import load_model_tokenizer, tokenize_datasets, set_train_args, create_trainer
-from analysis.helpers import compute_metrics_standard, compute_metrics_nli_binary, compute_metrics_classical_ml, clean_memory
+from helpers import format_nli_testset, format_nli_trainset, data_preparation  # custom_train_test_split, custom_train_test_split_sent_overlapp
+from helpers import load_model_tokenizer, tokenize_datasets, set_train_args, create_trainer
+from helpers import compute_metrics_standard, compute_metrics_nli_binary, compute_metrics_classical_ml, clean_memory
 
 ### load suitable hypotheses_hyperparameters and text formatting function
-from analysis.hypothesis_hyperparams import hypothesis_hyperparams
+from hypothesis_hyperparams import hypothesis_hyperparams
 
 
 ### load the hypothesis hyperparameters for the respective dataset
