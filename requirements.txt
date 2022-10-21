@@ -1,0 +1,17 @@
+
+
+pandas~=1.5
+numpy~=1.23.1
+scikit-learn~=1.1
+transformers[sentencepiece]~=4.23
+joblib~=1.1.0
+tqdm~=4.64.0
+optuna~=3.0
+EasyNMT~=2.0.2
+
+# Snellius A100 has CUDA 11.4
+#torch==1.11.0  # torch installation on Snellius only seems to work via terminal/batch script
+#codecarbon==2.0  # causes issues with Snellius
+
+#spacy~=3.4.0
+#https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.4.0/en_core_web_lg-3.4.0-py3-none-any.whl
