@@ -1,6 +1,6 @@
 #!/bin/bash
 #Set batch job requirements
-#SBATCH -t 3:00:00
+#SBATCH -t 6:00:00
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -17,6 +17,6 @@ cd ./multilingual-repo
 pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu113
 pip install -r requirements.txt
 
-python data-preparation/translation.py &> ./data-preparation/translatelogs_221021.txt
+python ./data-preparation/translation.py &> ./data-preparation/translatelogs_221021.txt
 
 

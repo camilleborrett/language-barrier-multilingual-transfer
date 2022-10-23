@@ -25,12 +25,12 @@ df_test = df_test.reset_index(drop=True)  # unnecessary nested index
 
 ## take sample for testing and to reduce excessive compute
 # train
-df_train = df_train.groupby(by="language_iso").apply(lambda x: x.groupby(by="label_subcat_text").apply(lambda x: x.sample(n=min(len(x), 1), random_state=42)))
+df_train = df_train.groupby(by="language_iso").apply(lambda x: x.groupby(by="label_subcat_text").apply(lambda x: x.sample(n=min(len(x), 50), random_state=42)))
 df_train = df_train.reset_index(drop=True)
 print(len(df_train))
 print(df_train.language_iso.value_counts())
 # test
-df_test = df_test.groupby(by="language_iso").apply(lambda x: x.groupby(by="label_subcat_text").apply(lambda x: x.sample(n=min(len(x), 1), random_state=42)))
+df_test = df_test.groupby(by="language_iso").apply(lambda x: x.groupby(by="label_subcat_text").apply(lambda x: x.sample(n=min(len(x), 50), random_state=42)))
 df_test = df_test.reset_index(drop=True)
 print(len(df_test))
 print(df_test.language_iso.value_counts())
@@ -43,8 +43,6 @@ lang_lst = ["en", "de", "es", "fr", "ko", "tr", "ru"]  #["eng", "deu", "spa", "f
 
 # has to be M2M due to many language directions
 model = EasyNMT('m2m_100_418M')  # m2m_100_418M, opus-mt, m2m100_1.2B, facebook/m2m100-12B-last-ckpt
-
-assert 1 == 2
 
 def translate_all2all(df=None, lang_lst=None, batch_size=8):
   df_step_lst = []
@@ -77,7 +75,7 @@ print(len(df_test_trans_concat))
 df_test_trans_concat.to_csv("./data-clean/df_manifesto_test_trans.csv", index=False)
 
 ## translate test
-df_train_trans = translate_all2all(df=df_train, lang_lst=lang_lst, batch_size=batch_size)  # df[df.language.isin(["de", "en"])].sample(n=20, random_state=42)
+df_train_trans = translate_all2all(df=df_train, lang_lst=lang_lst, batch_size=BATCH_SIZE)  # df[df.language.isin(["de", "en"])].sample(n=20, random_state=42)
 # concatenate translated texts with original texts
 print(len(df_train_trans))
 df_train["text_original_trans"] = df_train["text_original"]  #[np.nan] * len(df_train)
