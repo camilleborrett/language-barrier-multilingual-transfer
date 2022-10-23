@@ -14,5 +14,14 @@ EasyNMT~=2.0.2
 #torch==1.11.0  # torch installation on Snellius only seems to work via terminal/batch script
 #codecarbon==2.0  # causes issues with Snellius
 
-#spacy~=3.4.0
-#https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.4.0/en_core_web_lg-3.4.0-py3-none-any.whl
+spacy~=3.4.0
+https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.4.0/en_core_web_md-3.4.0-py3-none-any.whl
+https://github.com/explosion/spacy-models/releases/download/ko_core_news_md-3.4.0/ko_core_news_md-3.4.0-py3-none-any.whl
+https://github.com/explosion/spacy-models/releases/download/ru_core_news_md-3.4.0/ru_core_news_md-3.4.0-py3-none-any.whl
+https://github.com/explosion/spacy-models/releases/download/es_core_news_md-3.4.0/es_core_news_md-3.4.0-py3-none-any.whl
+https://github.com/explosion/spacy-models/releases/download/de_core_news_md-3.4.0/de_core_news_md-3.4.0-py3-none-any.whl
+https://github.com/explosion/spacy-models/releases/download/fr_core_news_md-3.4.0/fr_core_news_md-3.4.0-py3-none-any.whl
+
+
+
+
