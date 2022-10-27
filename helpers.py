@@ -81,16 +81,16 @@ def data_preparation(random_seed=42, hypothesis_template=None, hypo_label_dic=No
   print("Number of training examples after sampling: ", len(df_train_samp), " . (but before cross-validation split) ")
 
   # chose the text format depending on hyperparams (with /without context? delimiter strings for nli). does it both for nli and standard_dl/ml
-  df_train_samp = format_text_func(df=df_train_samp, text_format=hypothesis_template, embeddings=embeddings)
+  #df_train_samp = format_text_func(df=df_train_samp, text_format=hypothesis_template, embeddings=embeddings)
 
   # ~50% split cross-val as recommended by https://arxiv.org/pdf/2109.12742.pdf
   df_train_samp, df_dev_samp = train_test_split(df_train_samp, test_size=0.40, shuffle=True, random_state=random_seed)
   print(f"Final train test length after cross-val split: len(df_train_samp) = {len(df_train_samp)}, len(df_dev_samp) {len(df_dev_samp)}.")
 
   # format train and dev set for NLI etc.
-  if method == "nli":
-    df_train_samp = format_nli_trainset(df_train=df_train_samp, hypo_label_dic=hypo_label_dic)  # hypo_label_dic_short , hypo_label_dic_long
-    df_dev_samp = format_nli_testset(df_test=df_dev_samp, hypo_label_dic=hypo_label_dic)  # hypo_label_dic_short , hypo_label_dic_long
+  #if method == "nli":
+  #  df_train_samp = format_nli_trainset(df_train=df_train_samp, hypo_label_dic=hypo_label_dic)  # hypo_label_dic_short , hypo_label_dic_long
+  #  df_dev_samp = format_nli_testset(df_test=df_dev_samp, hypo_label_dic=hypo_label_dic)  # hypo_label_dic_short , hypo_label_dic_long
   
   return df_train_samp, df_dev_samp
 
@@ -274,7 +274,7 @@ def compute_metrics_classical_ml(label_pred, label_gold, label_text_alphabetical
             'eval_label_gold_raw': label_gold,
             'eval_label_predicted_raw': label_pred
             }
-    print("Aggregate metrics: ", {key: metrics[key] for key in metrics if key not in ["label_gold_raw", "label_predicted_raw"]} )  # print metrics but without label lists
+    print("Aggregate metrics: ", {key: metrics[key] for key in metrics if key not in ["eval_label_gold_raw", "eval_label_predicted_raw"]} )  # print metrics but without label lists
     print("Detailed metrics: ", classification_report(label_gold, label_pred, labels=np.sort(pd.factorize(label_text_alphabetical, sort=True)[0]), target_names=label_text_alphabetical, sample_weight=None, digits=2, output_dict=True,
                                 zero_division='warn'), "\n")
     return metrics

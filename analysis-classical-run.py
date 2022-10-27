@@ -1,8 +1,13 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-EXECUTION_TERMINAL = False
-print("Terminal execution: ", EXECUTION_TERMINAL)
+import sys
+if sys.stdin.isatty():
+    EXECUTION_TERMINAL = True
+else:
+    EXECUTION_TERMINAL = False
+print("Terminal execution: ", EXECUTION_TERMINAL, "  (sys.stdin.isatty(): ", sys.stdin.isatty(), ")")
+
 
 # ## Load packages
 import transformers
@@ -51,22 +56,22 @@ import argparse
 # https://docs.python.org/3/library/argparse.html
 
 # Create the parser
-parser = argparse.ArgumentParser(description='Run hyperparameter tuning with different algorithms on different datasets')
+parser = argparse.ArgumentParser(description='Do final run with best hyperparameters (on different languages, datasets, algorithms)')
 
 ## Add the arguments
 # arguments for hyperparameter search
-parser.add_argument('-context', '--context', action='store_true',
-                    help='Take surrounding context sentences into account. Only use flag if context available.')
+#parser.add_argument('-context', '--context', action='store_true',
+#                    help='Take surrounding context sentences into account. Only use flag if context available.')
 
 # arguments for both hyperparam and test script
 parser.add_argument('-lang', '--languages', type=str, nargs='+',
-                    help='List of languages to iterate over. e.g. "en", "de", "es", "fr", "ko", "ja", "tr", "ru" ')
+                    help='List of languages to iterate over. e.g. "en", "de", "es", "fr", "ko", "tr", "ru" ')
 parser.add_argument('-anchor', '--language_anchor', type=str,
                     help='Anchor language to translate all texts to if using anchor. Default is "en"')
 parser.add_argument('-language_train', '--language_train', type=str,
                     help='What language should the training set be in?. Default is "en"')
 parser.add_argument('-augment', '--augmentation_nmt', type=str,
-                    help='Whether and how to augment the data with neutral machine translation (NMT).')
+                    help='Whether and how to augment the data with machine translation (MT).')
 
 parser.add_argument('-ds', '--dataset', type=str,
                     help='Name of dataset. Can be one of: "manifesto-8" ')
@@ -78,10 +83,10 @@ parser.add_argument('-model', '--model', type=str,
                     help='Model name. String must lead to any Hugging Face model or "SVM" or "logistic". Must fit to "method" argument.')
 parser.add_argument('-vectorizer', '--vectorizer', type=str,
                     help='How to vectorize text. Options: "tfidf" or "embeddings-en" or "embeddings-multi"')
-parser.add_argument('-tqdm', '--disable_tqdm', action='store_true',
-                    help='Adding the flag enables tqdm for progress tracking')
-parser.add_argument('-carbon', '--carbon_tracking', action='store_true',
-                    help='Adding the flag enables carbon tracking via CodeCarbon')  # not used, as CodeCarbon caused bugs https://github.com/mlco2/codecarbon/issues/305
+#parser.add_argument('-tqdm', '--disable_tqdm', action='store_true',
+#                    help='Adding the flag enables tqdm for progress tracking')
+#parser.add_argument('-carbon', '--carbon_tracking', action='store_true',
+#                    help='Adding the flag enables carbon tracking via CodeCarbon')  # not used, as CodeCarbon caused bugs https://github.com/mlco2/codecarbon/issues/305
 
 parser.add_argument('-hp_date', '--hyperparam_study_date', type=str,
                     help='Date string to specifiy which hyperparameter run should be selected. e.g. "20220304"')
@@ -107,14 +112,15 @@ if EXECUTION_TERMINAL == True:
 
 elif EXECUTION_TERMINAL == False:
   # parse args if not in terminal, but in script
-  args = parser.parse_args(["--dataset", "manifesto-8",
-                            "--languages", "en", "de", "es", "fr", "tr", "ru",   #"ko", "ja"   # ! excluded due to train-test-split issue
+  args = parser.parse_args(["--n_cross_val_final", "2",
+                            "--dataset", "manifesto-8",
+                            "--languages", "en", "de", "es", "fr", "tr", "ru", "ko",
                             "--language_anchor", "en", "--language_train", "en",
                             "--augmentation_nmt", "many2anchor",  #"no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
                             "--sample_interval", "500",  # "100", "500", "1000", "2500", "5000", #"10000",
                             "--method", "classical_ml", "--model", "SVM",
                             "--vectorizer", "embeddings-multi",  # "tfidf", "embeddings-en", "embeddings-multi"
-                            "--n_cross_val_final", "2", "--hyperparam_study_date", "20220725"])
+                            "--hyperparam_study_date", "20221023"])
 
 
 ### args for both hyperparameter tuning and test runs
@@ -126,39 +132,27 @@ LANGUAGE_ANCHOR = args.language_anchor
 AUGMENTATION = args.augmentation_nmt
 
 N_SAMPLE_DEV = args.sample_interval   # [100, 500, 1000, 2500, 5000, 10_000]  999_999 = full dataset  # cannot include 0 here to find best hypothesis template for zero-shot, because 0-shot assumes no dev set
+VECTORIZER = args.vectorizer
 
 # decide on model to run
 METHOD = args.method  # "standard_dl", "nli", "classical_ml"
 MODEL_NAME = args.model  # "SVM"
 
-DISABLE_TQDM = args.disable_tqdm
-CARBON_TRACKING = args.carbon_tracking
+HYPERPARAM_STUDY_DATE = args.hyperparam_study_date  #"20220304"
+#DISABLE_TQDM = args.disable_tqdm
+#CARBON_TRACKING = args.carbon_tracking
 
 ### args only for test runs
-HYPERPARAM_STUDY_DATE = args.hyperparam_study_date  #"20220304"
 CROSS_VALIDATION_REPETITIONS_FINAL = args.n_cross_val_final
 ZEROSHOT = args.zeroshot
-VECTORIZER = args.vectorizer
 
 
 
 # ## Load data
 if "manifesto-8" in DATASET_NAME:
-  df_cl = pd.read_csv("./data-clean/df_manifesto_all.csv", index_col="idx")
-  df_train = pd.read_csv("./data-clean/df_manifesto_train_trans_embed.csv", index_col="idx")
-  df_test = pd.read_csv("./data-clean/df_manifesto_test_trans_embed.csv", index_col="idx")
-elif DATASET_NAME == "manifesto-military":
-  df_cl = pd.read_csv("./data-clean/df_manifesto_military_cl.csv", index_col="idx")
-  df_train = pd.read_csv("./data-clean/df_manifesto_military_train.csv", index_col="idx")
-  df_test = pd.read_csv("./data-clean/df_manifesto_military_test.csv", index_col="idx")
-elif DATASET_NAME == "manifesto-protectionism":
-  df_cl = pd.read_csv("./data-clean/df_manifesto_protectionism_cl.csv", index_col="idx")
-  df_train = pd.read_csv("./data-clean/df_manifesto_protectionism_train.csv", index_col="idx")
-  df_test = pd.read_csv("./data-clean/df_manifesto_protectionism_test.csv", index_col="idx")
-elif DATASET_NAME == "manifesto-morality":
-  df_cl = pd.read_csv("./data-clean/df_manifesto_morality_cl.csv", index_col="idx")
-  df_train = pd.read_csv("./data-clean/df_manifesto_morality_train.csv", index_col="idx")
-  df_test = pd.read_csv("./data-clean/df_manifesto_morality_test.csv", index_col="idx")
+  df_cl = pd.read_csv("./data-clean/df_manifesto_all.csv")
+  df_train = pd.read_csv("./data-clean/df_manifesto_train_trans_embed_tfidf.csv")
+  df_test = pd.read_csv("./data-clean/df_manifesto_test_trans_embed_tfidf.csv")
 else:
   raise Exception(f"Dataset name not found: {DATASET_NAME}")
 
@@ -177,10 +171,10 @@ print(DATASET_NAME)
 
 
 ## fill na for non translated texts to facilitate downstream analysis
-df_train["language_iso_trans"] = [language_iso if pd.isna(language_iso_trans) else language_iso_trans for language_iso, language_iso_trans in zip(df_train.language_iso, df_train.language_iso_trans)]
-df_train["text_original_trans"] = [text_original if pd.isna(text_original_trans) else text_original_trans for text_original, text_original_trans in zip(df_train.text_original, df_train.text_original_trans)]
-df_test["language_iso_trans"] = [language_iso if pd.isna(language_iso_trans) else language_iso_trans for language_iso, language_iso_trans in zip(df_test.language_iso, df_test.language_iso_trans)]
-df_test["text_original_trans"] = [text_original if pd.isna(text_original_trans) else text_original_trans for text_original, text_original_trans in zip(df_test.text_original, df_test.text_original_trans)]
+#df_train["language_iso_trans"] = [language_iso if pd.isna(language_iso_trans) else language_iso_trans for language_iso, language_iso_trans in zip(df_train.language_iso, df_train.language_iso_trans)]
+#df_train["text_original_trans"] = [text_original if pd.isna(text_original_trans) else text_original_trans for text_original, text_original_trans in zip(df_train.text_original, df_train.text_original_trans)]
+#df_test["language_iso_trans"] = [language_iso if pd.isna(language_iso_trans) else language_iso_trans for language_iso, language_iso_trans in zip(df_test.language_iso, df_test.language_iso_trans)]
+#df_test["text_original_trans"] = [text_original if pd.isna(text_original_trans) else text_original_trans for text_original, text_original_trans in zip(df_test.text_original, df_test.text_original_trans)]
 
 
 
@@ -244,81 +238,38 @@ print([template for template in list(hypothesis_hyperparams_dic.keys()) if "not_
 print([template for template in list(hypothesis_hyperparams_dic.keys()) if "not_nli" not in template])
 
 # in case -context flag is passed, but dataset actually does not have context
-classical_templates = [template for template in list(hypothesis_hyperparams_dic.keys()) if "not_nli" in template]
-if "context" not in classical_templates:
-  CONTEXT = False
+# ! do not use context, because some languages have too little data and makes train-test split problematic
+#classical_templates = [template for template in list(hypothesis_hyperparams_dic.keys()) if "not_nli" in template]
+#if "context" not in classical_templates:
+#  CONTEXT = False
 
 
 
 
-##### prepare texts for classical ML
-df_train_lemma = df_train.copy(deep=True)
-df_test_lemma = df_test.copy(deep=True)
-
-"""if VECTORIZER == "tfidf":
-    embeddings = False
-elif VECTORIZER == "embeddings-en":
-    embeddings = True
-elif VECTORIZER == "embeddings-multi":
-    embeddings = True"""
-
-# ! lemmatization not necessary for tests
-"""nlp = spacy.load("en_core_web_sm")
-np.random.seed(SEED_GLOBAL)
+##### prepare texts for classical ML TF-IDF
+## embeddings from transformers are already added in data frame upstream
 
 ## lemmatize text
-def lemmatize(text_lst, embeddings=False):
-  texts_lemma = []
-  texts_vector = []
-  if embeddings==False:
-    for doc in nlp.pipe(text_lst, n_process=1):  #  disable=["tok2vec", "ner"] "tagger", "attribute_ruler", "parser",
-      doc_lemmas = " ".join([token.lemma_ for token in doc])
-      texts_lemma.append(doc_lemmas)
-    return texts_lemma
-  elif embeddings==True:
-    for doc in nlp.pipe(text_lst, n_process=1):  #  disable=["parser", "ner"] "tagger", "attribute_ruler", "tok2vec",
-      # only use specific parts-of-speech
-      doc_lemmas = " ".join([token.lemma_ for token in doc if token.pos_ in ["NOUN", "ADJ", "VERB", "PROPN", "ADV", "INTJ", "PRON"]])  # difficult choice what to include https://spacy.io/usage/linguistic-features#pos-tagging
-      # testing word vector representations instead of TF-IDF
-      doc_vector = np.mean([token.vector for token in doc if token.pos_ in ["NOUN", "ADJ", "VERB", "PROPN", "ADV", "INTJ", "PRON"]], axis=0)
-      if str(doc_vector) == "nan":  # in case none of the pos tags are in text
-          doc_vector = np.mean([token.vector for token in doc], axis=0)
-      texts_lemma.append(doc_lemmas)
-      texts_vector.append(doc_vector)
-    return texts_vector
-  else:
-    raise Exception(f"embeddings not properly specified: {embeddings}")
+if VECTORIZER == "tfidf":
+    nlp = spacy.load("en_core_web_md")
+    np.random.seed(SEED_GLOBAL)
+    def lemmatize(text_lst):
+        texts_lemma = []
+        for doc in nlp.pipe(text_lst, n_process=4):  # disable=["tok2vec", "ner"] "tagger", "attribute_ruler", "parser",
+            doc_lemmas = " ".join([token.lemma_ for token in doc])
+            texts_lemma.append(doc_lemmas)
+        return texts_lemma
+
+    ## lemmatize depending on dataset
+    if "text_original" in df_cl.columns:
+        df_train["text_original"] = lemmatize(df_train.text_original)
+        df_test["text_original"] = lemmatize(df_test.text_original)
+    else:
+        df_train["text"] = lemmatize(df_train.text)
+        df_test["text"] = lemmatize(df_test.text)
 
 
-## lemmatize depending on dataset: some have only one text column ("text"), some have three (original, preceding, following text)
-if "text_original" in df_cl.columns:
-  #df_cl_lemma["text"] = lemmatize(df_cl.text_original)
-  df_train_lemma["text_original"] = lemmatize(df_train.text_original, embeddings=embeddings)
-  df_test_lemma["text_original"] = lemmatize(df_test.text_original, embeddings=embeddings)
-else:
-  #df_cl_lemma["text"] = lemmatize(df_cl.text)
-  df_train_lemma["text"] = lemmatize(df_train.text, embeddings=embeddings)
-  df_test_lemma["text"] = lemmatize(df_test.text, embeddings=embeddings)
 
-if "text_preceding" in df_cl.columns:
-  #df_cl_lemma["text_preceding"] = lemmatize(df_cl.text_preceding.fillna(""))
-  df_train_lemma["text_preceding"] = lemmatize(df_train.text_preceding.fillna(""), embeddings=embeddings)
-  df_test_lemma["text_preceding"] = lemmatize(df_test.text_preceding.fillna(""), embeddings=embeddings)
-  # if surrounding text was nan, insert vector of original text to avoid nan error
-  df_train_lemma["text_preceding"] = [text_original if str(text_surrounding) == "nan" else text_surrounding for text_surrounding, text_original in
-                                      zip(df_train_lemma["text_preceding"], df_train_lemma["text_original"])]
-  df_test_lemma["text_preceding"] = [text_original if str(text_surrounding) == "nan" else text_surrounding for text_surrounding, text_original in
-                                      zip(df_test_lemma["text_preceding"], df_test_lemma["text_original"])]
-if "text_following" in df_cl.columns:
-  #df_cl_lemma["text_following"] = lemmatize(df_cl.text_following.fillna(""))
-  df_train_lemma["text_following"] = lemmatize(df_train.text_following.fillna(""), embeddings=embeddings)
-  df_test_lemma["text_following"] = lemmatize(df_test.text_following.fillna(""), embeddings=embeddings)
-  # if surrounding text was nan, insert vector of original text to avoid nan error
-  df_train_lemma["text_following"] = [text_original if str(text_surrounding) == "nan" else text_surrounding for text_surrounding, text_original in
-                                      zip(df_train_lemma["text_following"], df_train_lemma["text_original"])]
-  df_test_lemma["text_following"] = [text_original if str(text_surrounding) == "nan" else text_surrounding for text_surrounding, text_original in
-                                      zip(df_test_lemma["text_following"], df_test_lemma["text_original"])]
-"""
 
 
 # ## Final test with best hyperparameters
@@ -403,13 +354,13 @@ mapping_parfam = {10: "ECO: Ecological parties", 20: "LEF: Socialist or other le
                   90: "ETH: Ethnic and regional parties", 95: "SIP: Special issue parties", 98: "DIV: Electoral alliances of diverse origin without dominant party",
                   999: "MI: Missing information"
 }
-df_train_lemma["parfam_name"] = df_train_lemma.parfam.map(mapping_parfam)
-df_train_lemma["parfam_rile"] = ["left" if parfam in [10, 20, 30] else "right" if parfam in [50, 60, 70, 80, 90] else "other" for parfam in df_train_lemma["parfam"]]
+df_train["parfam_name"] = df_train.parfam.map(mapping_parfam)
+df_train["parfam_rile"] = ["left" if parfam in [10, 20, 30] else "right" if parfam in [50, 60, 70, 80, 90] else "other" for parfam in df_train["parfam"]]
 cmp_code_left = [103, 105, 106, 107, 202, 403, 404, 406, 412, 413, 504, 506, 701]
 cmp_code_right = [104, 201, 203, 305, 401, 402, 407, 414, 505, 601, 603, 605, 606]
-cmp_code_other = np.unique([cmp_code for cmp_code in df_train_lemma["cmp_code"] if cmp_code not in cmp_code_left + cmp_code_right])
-df_train_lemma["label_rile"] = ["left" if cmp_code in cmp_code_left else "right" if cmp_code in cmp_code_right else "other" for cmp_code in df_train_lemma["cmp_code"]]
-df_train_lemma["decade"] = [str(date)[:3]+"0" for date in df_train_lemma.date]
+cmp_code_other = np.unique([cmp_code for cmp_code in df_train["cmp_code"] if cmp_code not in cmp_code_left + cmp_code_right])
+df_train["label_rile"] = ["left" if cmp_code in cmp_code_left else "right" if cmp_code in cmp_code_right else "other" for cmp_code in df_train["cmp_code"]]
+df_train["decade"] = [str(date)[:3]+"0" for date in df_train.date]
 
 df_cl["label_rile"] = ["left" if cmp_code in cmp_code_left else "right" if cmp_code in cmp_code_right else "other" for cmp_code in df_test["cmp_code"]]
 df_cl["label_rile"].value_counts()
@@ -418,8 +369,8 @@ df_train["label_rile"].value_counts()
 df_test["label_rile"] = ["left" if cmp_code in cmp_code_left else "right" if cmp_code in cmp_code_right else "other" for cmp_code in df_test["cmp_code"]]
 df_test["label_rile"].value_counts()
 
-df_embed_lst = pd.DataFrame([ast.literal_eval(lst) for lst in df_train_lemma.text_original_trans_embed_multi.astype('object')])
-df_embed_lst["label_rile"] = pd.factorize(df_train_lemma.label_rile.tolist())[0]
+df_embed_lst = pd.DataFrame([ast.literal_eval(lst) for lst in df_train.text_original_trans_embed_multi.astype('object')])
+df_embed_lst["label_rile"] = pd.factorize(df_train.label_rile.tolist())[0]
 
 X = df_embed_lst
 
@@ -427,7 +378,7 @@ cr = CorrelationRemover(sensitive_feature_ids=['label_rile'], alpha=1)
 cr.fit(X)
 X_transform = cr.transform(X)
 
-df_train_lemma["text_original_trans_embed_multi"] = X_transform.tolist()
+df_train["text_original_trans_embed_multi"] = X_transform.tolist()
 """
 
 
@@ -440,26 +391,27 @@ for lang, n_max_sample, hyperparams, hypothesis_template in tqdm.tqdm(zip(LANGUA
   np.random.seed(SEED_GLOBAL)
   t_start = time.time()  # log how long training of model takes
 
+  # ! put in function
   ### select correct language for train sampling and test
   ## Two different language scenarios
   if "no-nmt-single" in AUGMENTATION:
-      df_train_lang = df_train_lemma.query("language_iso == @LANGUAGE_TRAIN & language_iso_trans == @LANGUAGE_TRAIN").copy(deep=True)
-      df_test_lang = df_test_lemma.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
+      df_train_lang = df_train.query("language_iso == @LANGUAGE_TRAIN & language_iso_trans == @LANGUAGE_TRAIN").copy(deep=True)
+      df_test_lang = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
       if "multi" not in VECTORIZER:
           raise Exception(f"Cannot use {VECTORIZER} if augmentation is {AUGMENTATION}")
   elif "one2anchor" in AUGMENTATION:
-      df_train_lang = df_train_lemma.query("language_iso == @LANGUAGE_TRAIN & language_iso_trans == @LANGUAGE_ANCHOR").copy(deep=True)
+      df_train_lang = df_train.query("language_iso == @LANGUAGE_TRAIN & language_iso_trans == @LANGUAGE_ANCHOR").copy(deep=True)
       # for test set - for non-multi, test on translated text, for multi algos test on original lang text
       if "multi" not in VECTORIZER:
-          df_test_lang = df_test_lemma.query("language_iso == @lang & language_iso_trans == @LANGUAGE_ANCHOR").copy(deep=True)
+          df_test_lang = df_test.query("language_iso == @lang & language_iso_trans == @LANGUAGE_ANCHOR").copy(deep=True)
       elif "multi" in VECTORIZER:
-          df_test_lang = df_test_lemma.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
+          df_test_lang = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
   elif "one2many" in AUGMENTATION:
       # augmenting this with other translations further down after sampling
-      df_train_lang = df_train_lemma.query("language_iso == @LANGUAGE_TRAIN & language_iso_trans == @LANGUAGE_TRAIN").copy(deep=True)
+      df_train_lang = df_train.query("language_iso == @LANGUAGE_TRAIN & language_iso_trans == @LANGUAGE_TRAIN").copy(deep=True)
       # for test set - for multi algos test on original lang text
       if "multi" in VECTORIZER:
-          df_test_lang = df_test_lemma.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
+          df_test_lang = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
       elif "multi" not in VECTORIZER:
           raise Exception(f"Cannot use {VECTORIZER} if augmentation is {AUGMENTATION}")
 
@@ -467,25 +419,25 @@ for lang, n_max_sample, hyperparams, hypothesis_template in tqdm.tqdm(zip(LANGUA
   elif "no-nmt-many" in AUGMENTATION:
       # separate analysis per lang if not multi
       if "multi" not in VECTORIZER:
-          df_train_lang = df_train_lemma.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
-          df_test_lang = df_test_lemma.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
+          df_train_lang = df_train.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
+          df_test_lang = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
       # multilingual models can analyse all original texts here
       elif "multi" in VECTORIZER:
-          df_train_lang = df_train_lemma.query("language_iso == language_iso_trans").copy(deep=True)
-          df_test_lang = df_test_lemma.query("language_iso == language_iso_trans").copy(deep=True)
+          df_train_lang = df_train.query("language_iso == language_iso_trans").copy(deep=True)
+          df_test_lang = df_test.query("language_iso == language_iso_trans").copy(deep=True)
   elif "many2anchor" in AUGMENTATION:
       if "multi" not in VECTORIZER:
-          df_train_lang = df_train_lemma.query("language_iso_trans == @LANGUAGE_ANCHOR").copy(deep=True)
-          df_test_lang = df_test_lemma.query("language_iso_trans == @LANGUAGE_ANCHOR").copy(deep=True)
+          df_train_lang = df_train.query("language_iso_trans == @LANGUAGE_ANCHOR").copy(deep=True)
+          df_test_lang = df_test.query("language_iso_trans == @LANGUAGE_ANCHOR").copy(deep=True)
       # multilingual models can analyse all original texts here. augmented below with anchor lang
       elif "multi" in VECTORIZER:
-          df_train_lang = df_train_lemma.query("language_iso == language_iso_trans").copy(deep=True)
-          df_test_lang = df_test_lemma.query("language_iso == language_iso_trans").copy(deep=True)
+          df_train_lang = df_train.query("language_iso == language_iso_trans").copy(deep=True)
+          df_test_lang = df_test.query("language_iso == language_iso_trans").copy(deep=True)
   elif "many2many" in AUGMENTATION:
       # multilingual models can analyse all original texts here. can be augmented below with all other translations
       if "multi" in VECTORIZER:
-          df_train_lang = df_train_lemma.query("language_iso == language_iso_trans").copy(deep=True)
-          df_test_lang = df_test_lemma.query("language_iso == language_iso_trans").copy(deep=True)
+          df_train_lang = df_train.query("language_iso == language_iso_trans").copy(deep=True)
+          df_test_lang = df_test.query("language_iso == language_iso_trans").copy(deep=True)
       elif "multi" not in VECTORIZER:
           raise Exception(f"Cannot use {VECTORIZER} if augmentation is {AUGMENTATION}")
   else:
@@ -520,8 +472,10 @@ for lang, n_max_sample, hyperparams, hypothesis_template in tqdm.tqdm(zip(LANGUA
       break
 
 
-    ### data augmentation on sample
-    ## single language text scenarios
+    ### data augmentation on sample for multiling models + translation scenarios
+    # general function - common with hp-search script
+    df_train_samp_augment = data_augmentation(df_train_scenario_samp=df_train_samp, df_train=df_train)
+    """## single language text scenarios
     sample_sent_id = df_train_samp.sentence_id.unique()
     if AUGMENTATION == "no-nmt-single":
         df_train_samp_augment = df_train_samp.copy(deep=True)
@@ -529,14 +483,14 @@ for lang, n_max_sample, hyperparams, hypothesis_template in tqdm.tqdm(zip(LANGUA
         if "multi" not in VECTORIZER:
             df_train_samp_augment = df_train_samp.copy(deep=True)
         elif "multi" in VECTORIZER:
-            # augment by combining texts from anchor language with texts from anchor translated to target language
-            df_train_augment = df_train_lemma[(((df_train_lemma.language_iso == LANGUAGE_TRAIN) & (df_train_lemma.language_iso_trans == LANGUAGE_ANCHOR)) | ((df_train_lemma.language_iso == LANGUAGE_TRAIN) & (df_train_lemma.language_iso_trans == lang)))].copy(deep=True)
-            df_train_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
+            # augment by combining texts from train language with texts from train translated to target language
+            df_train_augment = df_train[(((df_train.language_iso == LANGUAGE_TRAIN) & (df_train.language_iso_trans == LANGUAGE_TRAIN)) | ((df_train.language_iso == LANGUAGE_TRAIN) & (df_train.language_iso_trans == lang)))].copy(deep=True)
+            df_train_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)
         else:
             raise Exception("Issue with VECTORIZER")
     elif AUGMENTATION == "one2many":
         if "multi" in VECTORIZER:
-            df_train_augment = df_train_lemma.query("language_iso == @LANGUAGE_TRAIN").copy(deep=True)  # can use all translations and original text (for single train lang) here
+            df_train_augment = df_train.query("language_iso == @LANGUAGE_TRAIN").copy(deep=True)  # can use all translations and original text (for single train lang) here
             df_train_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
         else:
             raise Exception("AUGMENTATION == 'X2many' only works for multilingual vectorization")
@@ -546,17 +500,19 @@ for lang, n_max_sample, hyperparams, hypothesis_template in tqdm.tqdm(zip(LANGUA
     elif AUGMENTATION == "many2anchor":
         if "multi" not in VECTORIZER:
             df_train_samp_augment = df_train_samp.copy(deep=True)
-        if "multi" in VECTORIZER:
+        elif "multi" in VECTORIZER:
             # already have all original languages in the scenario. augmenting it with translated (to anchor) texts here. e.g. for 7*6=3500 original texts, adding 6*6=3000 texts, all translated to anchor (except anchor texts)
-            df_train_augment = df_train_lemma[(df_train_lemma.language_iso == df_train_lemma.language_iso_trans) | (df_train_lemma.language_iso_trans == LANGUAGE_ANCHOR)].copy(deep=True)
+            df_train_augment = df_train[(df_train.language_iso == df_train.language_iso_trans) | (df_train.language_iso_trans == LANGUAGE_ANCHOR)].copy(deep=True)
             df_train_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
     elif AUGMENTATION == "many2many":
-        if "multi" in VECTORIZER:
+        if "multi" not in VECTORIZER:
+            df_train_samp_augment = df_train_samp.copy(deep=True)
+        elif "multi" in VECTORIZER:
             # already have all original languages in the scenario. augmenting it with all other translated texts
-            df_train_augment = df_train_lemma.copy(deep=True)
+            df_train_augment = df_train.copy(deep=True)
             df_train_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
-        else:
-            raise Exception(f"AUGMENTATION == {AUGMENTATION} only works for multilingual vectorization")
+        #else:
+        #    raise Exception(f"AUGMENTATION == {AUGMENTATION} only works for multilingual vectorization")"""
 
 
     # chose the text format depending on hyperparams
@@ -578,7 +534,6 @@ for lang, n_max_sample, hyperparams, hypothesis_template in tqdm.tqdm(zip(LANGUA
         X_test = vectorizer.transform(df_test_formatted.text_prepared)
     if "embeddings" in VECTORIZER:
         X_train = np.array([ast.literal_eval(lst) for lst in df_train_samp_augment.text_prepared.astype('object')])
-        #X_train = np.array([lst for lst in df_train_samp_augment.text_prepared.astype('object')])
         X_test = np.array([ast.literal_eval(lst) for lst in df_test_formatted.text_prepared.astype('object')])
 
 

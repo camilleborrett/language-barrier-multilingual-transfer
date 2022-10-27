@@ -1,8 +1,13 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-EXECUTION_TERMINAL = False
-print("Terminal execution: ", EXECUTION_TERMINAL)
+import sys
+if sys.stdin.isatty():
+    EXECUTION_TERMINAL = True
+else:
+    EXECUTION_TERMINAL = False
+print("Terminal execution: ", EXECUTION_TERMINAL, "  (sys.stdin.isatty(): ", sys.stdin.isatty(), ")")
+
 
 # ! had protobuf==4.21.3, downgraded to pip install protobuf==3.20.* to avoid error when running minilm https://stackoverflow.com/questions/72441758/typeerror-descriptors-cannot-not-be-created-directly
 # need to add to requirements.txt if it works
@@ -141,21 +146,9 @@ VECTORIZER = args.vectorizer
 
 # ## Load data
 if "manifesto-8" in DATASET_NAME:
-  df_cl = pd.read_csv("./data-clean/df_manifesto_all.csv", index_col="idx")
-  df_train = pd.read_csv("./data-clean/df_manifesto_train_trans_embed.csv", index_col="idx")
-  df_test = pd.read_csv("./data-clean/df_manifesto_test_trans_embed.csv", index_col="idx")
-elif DATASET_NAME == "manifesto-military":
-  df_cl = pd.read_csv("./data-clean/df_manifesto_military_cl.csv", index_col="idx")
-  df_train = pd.read_csv("./data-clean/df_manifesto_military_train.csv", index_col="idx")
-  df_test = pd.read_csv("./data-clean/df_manifesto_military_test.csv", index_col="idx")
-elif DATASET_NAME == "manifesto-protectionism":
-  df_cl = pd.read_csv("./data-clean/df_manifesto_protectionism_cl.csv", index_col="idx")
-  df_train = pd.read_csv("./data-clean/df_manifesto_protectionism_train.csv", index_col="idx")
-  df_test = pd.read_csv("./data-clean/df_manifesto_protectionism_test.csv", index_col="idx")
-elif DATASET_NAME == "manifesto-morality":
-  df_cl = pd.read_csv("./data-clean/df_manifesto_morality_cl.csv", index_col="idx")
-  df_train = pd.read_csv("./data-clean/df_manifesto_morality_train.csv", index_col="idx")
-  df_test = pd.read_csv("./data-clean/df_manifesto_morality_test.csv", index_col="idx")
+  df_cl = pd.read_csv("./data-clean/df_manifesto_all.csv")
+  df_train = pd.read_csv("./data-clean/df_manifesto_train_trans_embed_tfidf.csv")
+  df_test = pd.read_csv("./data-clean/df_manifesto_test_trans_embed_tfidf.csv")
 else:
   raise Exception(f"Dataset name not found: {DATASET_NAME}")
 
@@ -408,8 +401,10 @@ for lang, n_max_sample, hyperparams, hypothesis_template in tqdm.tqdm(zip(LANGUA
       break
 
 
-    ### data augmentation on sample
-    ## single language text scenarios
+    ### data augmentation on sample for multiling models + translation scenarios
+    # general function - common with hp-search script
+    df_train_samp_augment = data_augmentation(df_train_scenario_samp=df_train_samp, df_train=df_train)
+    """## single language text scenarios
     sample_sent_id = df_train_samp.sentence_id.unique()
     if AUGMENTATION == "no-nmt-single":
         df_train_samp_augment = df_train_samp.copy(deep=True)
@@ -417,9 +412,9 @@ for lang, n_max_sample, hyperparams, hypothesis_template in tqdm.tqdm(zip(LANGUA
         if "multi" not in VECTORIZER:
             df_train_samp_augment = df_train_samp.copy(deep=True)
         elif "multi" in VECTORIZER:
-            # augment by combining texts from anchor language with texts from anchor translated to target language
-            df_train_augment = df_train[(((df_train.language_iso == LANGUAGE_TRAIN) & (df_train.language_iso_trans == LANGUAGE_ANCHOR)) | ((df_train.language_iso == LANGUAGE_TRAIN) & (df_train.language_iso_trans == lang)))].copy(deep=True)
-            df_train_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
+            # augment by combining texts from train language with texts from train translated to target language
+            df_train_augment = df_train[(((df_train.language_iso == LANGUAGE_TRAIN) & (df_train.language_iso_trans == LANGUAGE_TRAIN)) | ((df_train.language_iso == LANGUAGE_TRAIN) & (df_train.language_iso_trans == lang)))].copy(deep=True)
+            df_train_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)
         else:
             raise Exception("Issue with VECTORIZER")
     elif AUGMENTATION == "one2many":
@@ -434,17 +429,19 @@ for lang, n_max_sample, hyperparams, hypothesis_template in tqdm.tqdm(zip(LANGUA
     elif AUGMENTATION == "many2anchor":
         if "multi" not in VECTORIZER:
             df_train_samp_augment = df_train_samp.copy(deep=True)
-        if "multi" in VECTORIZER:
+        elif "multi" in VECTORIZER:
             # already have all original languages in the scenario. augmenting it with translated (to anchor) texts here. e.g. for 7*6=3500 original texts, adding 6*6=3000 texts, all translated to anchor (except anchor texts)
             df_train_augment = df_train[(df_train.language_iso == df_train.language_iso_trans) | (df_train.language_iso_trans == LANGUAGE_ANCHOR)].copy(deep=True)
             df_train_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
     elif AUGMENTATION == "many2many":
-        if "multi" in VECTORIZER:
+        if "multi" not in VECTORIZER:
+            df_train_samp_augment = df_train_samp.copy(deep=True)
+        elif "multi" in VECTORIZER:
             # already have all original languages in the scenario. augmenting it with all other translated texts
             df_train_augment = df_train.copy(deep=True)
             df_train_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
-        else:
-            raise Exception(f"AUGMENTATION == {AUGMENTATION} only works for multilingual vectorization")
+        #else:
+        #    raise Exception(f"AUGMENTATION == {AUGMENTATION} only works for multilingual vectorization")"""
 
 
     # chose the text format depending on hyperparams
