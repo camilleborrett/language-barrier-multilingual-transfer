@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-# coding: utf-8
+
 
 import sys
 if sys.stdin.isatty():
@@ -56,9 +55,11 @@ import argparse
 parser = argparse.ArgumentParser(description='Run hyperparameter tuning with different algorithms on different datasets')
 
 ## Add the arguments
-# arguments for hyperparameter search
-parser.add_argument('-context', '--context', action='store_true',
-                    help='Take surrounding context sentences into account. Only use flag if context available.')
+# arguments only for test script
+parser.add_argument('-cvf', '--n_cross_val_final', type=int, default=3,
+                    help='For how many different random samples should the algorithm be tested at a given sample size?')
+parser.add_argument('-zeroshot', '--zeroshot', action='store_true',
+                    help='Start training run with a zero-shot run')
 
 # arguments for both hyperparam and test script
 parser.add_argument('-lang', '--languages', type=str, nargs='+',
@@ -80,19 +81,9 @@ parser.add_argument('-model', '--model', type=str,
                     help='Model name. String must lead to any Hugging Face model. Must fit to "method" argument.')
 parser.add_argument('-vectorizer', '--vectorizer', type=str,
                     help='How to vectorize text. Options: "tfidf" or "embeddings-en" or "embeddings-multi"')
-parser.add_argument('-tqdm', '--disable_tqdm', action='store_true',
-                    help='Adding the flag enables tqdm for progress tracking')
-parser.add_argument('-carbon', '--carbon_tracking', action='store_true',
-                    help='Adding the flag enables carbon tracking via CodeCarbon')  # not used, as CodeCarbon caused bugs https://github.com/mlco2/codecarbon/issues/305
-
 parser.add_argument('-hp_date', '--hyperparam_study_date', type=str,
                     help='Date string to specifiy which hyperparameter run should be selected. e.g. "20220304"')
 
-# arguments only for test script
-parser.add_argument('-cvf', '--n_cross_val_final', type=int, default=3,
-                    help='For how many different random samples should the algorithm be tested at a given sample size?')
-parser.add_argument('-zeroshot', '--zeroshot', action='store_true',
-                    help='Start training run with a zero-shot run')
 
 
 
@@ -109,38 +100,41 @@ if EXECUTION_TERMINAL == True:
 
 elif EXECUTION_TERMINAL == False:
   # parse args if not in terminal, but in script. adapt manually
-  args = parser.parse_args(["--dataset", "manifesto-8",
-                            "--languages", "en", "de", "es", "fr", "tr", "ru",   #"en", "de", "es", "fr", "tr", "ru", "ko", "ja"   # ! ko, ja excluded due to train-test-split issue
-                            "--language_anchor", "en", "--language_train", "en",
-                            "--augmentation_nmt", "no-nmt-single",  #"no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
-                            "--sample_interval", "500",  # "100", "500", "1000", "2500", "5000", #"10000",
-                            "--method", "standard_dl", "--model", "microsoft/Multilingual-MiniLM-L12-H384",  # "microsoft/Multilingual-MiniLM-L12-H384", "microsoft/MiniLM-L12-H384-uncased"
-                            "--vectorizer", "transformer-multi",  # "tfidf", "embeddings-en", "embeddings-multi", "transformer-mono", "transformer-multi"
-                            "--n_cross_val_final", "2", "--hyperparam_study_date", "20220725"])
+  args = parser.parse_args(["--n_cross_val_final", "2",  #--zeroshot
+                            "--dataset", "manifesto-8",
+                            "--languages", "en", "de", "es", "fr", "tr", "ru", "ko",
+                            "--language_anchor", "en", "--language_train", "en",  # in multiling scenario --language_train needs to be list of lang (?)
+                            "--augmentation_nmt", "many2many",  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
+                            "--sample_interval", "300",  #"100", "500", "1000", #"2500", "5000", #"10000",
+                            "--method", "classical_ml", "--model", "microsoft/Multilingual-MiniLM-L12-H384",  # "microsoft/Multilingual-MiniLM-L12-H384", "microsoft/MiniLM-L12-H384-uncased"
+                            "--vectorizer", "embeddings-multi",  # "tfidf", "embeddings-en", "embeddings-multi"
+                            "--hyperparam_study_date", "20221026"])
 
+
+
+### args only for test runs
+CROSS_VALIDATION_REPETITIONS_FINAL = args.n_cross_val_final
+ZEROSHOT = args.zeroshot
 
 ### args for both hyperparameter tuning and test runs
 # choose dataset
 DATASET_NAME = args.dataset  # "sentiment-news-econ" "coronanet" "cap-us-court" "cap-sotu" "manifesto-8" "manifesto-military" "manifesto-protectionism" "manifesto-morality" "manifesto-nationalway" "manifesto-44" "manifesto-complex"
 LANGUAGES = args.languages
+LANGUAGES = LANGUAGES[:3]
 LANGUAGE_TRAIN = args.language_train
 LANGUAGE_ANCHOR = args.language_anchor
 AUGMENTATION = args.augmentation_nmt
 
 N_SAMPLE_DEV = args.sample_interval   # [100, 500, 1000, 2500, 5000, 10_000]  999_999 = full dataset  # cannot include 0 here to find best hypothesis template for zero-shot, because 0-shot assumes no dev set
+VECTORIZER = args.vectorizer
 
 # decide on model to run
 METHOD = args.method  # "standard_dl", "nli", "classical_ml"
-MODEL_NAME = args.model
+MODEL_NAME = args.model  # "SVM"
 
-DISABLE_TQDM = args.disable_tqdm
-CARBON_TRACKING = args.carbon_tracking
-
-### args only for test runs
 HYPERPARAM_STUDY_DATE = args.hyperparam_study_date  #"20220304"
-CROSS_VALIDATION_REPETITIONS_FINAL = args.n_cross_val_final
-ZEROSHOT = args.zeroshot
-VECTORIZER = args.vectorizer
+
+
 
 
 
@@ -165,12 +159,6 @@ else:
 
 print(DATASET_NAME)
 
-
-## fill na for non translated texts to facilitate downstream analysis
-df_train["language_iso_trans"] = [language_iso if pd.isna(language_iso_trans) else language_iso_trans for language_iso, language_iso_trans in zip(df_train.language_iso, df_train.language_iso_trans)]
-df_train["text_original_trans"] = [text_original if pd.isna(text_original_trans) else text_original_trans for text_original, text_original_trans in zip(df_train.text_original, df_train.text_original_trans)]
-df_test["language_iso_trans"] = [language_iso if pd.isna(language_iso_trans) else language_iso_trans for language_iso, language_iso_trans in zip(df_test.language_iso, df_test.language_iso_trans)]
-df_test["text_original_trans"] = [text_original if pd.isna(text_original_trans) else text_original_trans for text_original, text_original_trans in zip(df_test.text_original, df_test.text_original_trans)]
 
 
 
@@ -218,162 +206,53 @@ import helpers
 import importlib  # in case of manual updates in .py file
 importlib.reload(helpers)
 
-from helpers import format_nli_testset, format_nli_trainset, data_preparation  # custom_train_test_split, custom_train_test_split_sent_overlapp
+from helpers import compute_metrics_standard, clean_memory
 from helpers import load_model_tokenizer, tokenize_datasets, set_train_args, create_trainer
-from helpers import compute_metrics_standard, compute_metrics_nli_binary, compute_metrics_classical_ml, clean_memory
 
-### load suitable hypotheses_hyperparameters and text formatting function
-from hypothesis_hyperparams import hypothesis_hyperparams
-
-
-### load the hypothesis hyperparameters for the respective dataset
-hypothesis_hyperparams_dic, format_text = hypothesis_hyperparams(dataset_name=DATASET_NAME, df_cl=df_cl)
-
-# check which template fits to standard_dl or NLI
-print("")
-print([template for template in list(hypothesis_hyperparams_dic.keys()) if "not_nli" in template])
-print([template for template in list(hypothesis_hyperparams_dic.keys()) if "not_nli" not in template])
-
-# in case -context flag is passed, but dataset actually does not have context
-nli_templates = [template for template in list(hypothesis_hyperparams_dic.keys()) if "not_nli" not in template]
-if "context" not in nli_templates:
-  CONTEXT = False
+## functions for scenario data selection and augmentation
+from helpers import select_data_for_scenario_hp_search, select_data_for_scenario_final_test, data_augmentation, sample_for_scenario, choose_preprocessed_text
 
 
 
 
 # ## Final test with best hyperparameters
 
-### parameters for final tests with best hyperparams
-## load existing studies with hyperparams
+## hyperparameters for final tests
 # selective load one decent set of hps for testing
 #hp_study_dic = joblib.load("/Users/moritzlaurer/Dropbox/PhD/Papers/nli/snellius/NLI-experiments/results/manifesto-8/optuna_study_deberta-v3-base_01000samp_20221006.pkl")
 
+# select best hp
+n_sample = N_SAMPLE_DEV[0]
+n_sample_string = N_SAMPLE_DEV[0]
+while len(str(n_sample_string)) <= 4:
+    n_sample_string = "0" + str(n_sample_string)
+
 ## testing with manually set hyperparameters
 N_SAMPLE_TEST = N_SAMPLE_DEV * len(LANGUAGES)
-HYPOTHESIS_TEMPLATE_LST = ["template_not_nli"] * len(LANGUAGES)
-HYPER_PARAMS_LST_TEST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 2, 'seed': 42, 'per_device_train_batch_size': 16, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 128}]
-HYPER_PARAMS_LST_TEST = HYPER_PARAMS_LST_TEST * len(LANGUAGES)
-print(HYPER_PARAMS_LST_TEST)
-
-"""if ZEROSHOT == False:
-  N_SAMPLE_TEST = N_SAMPLE_DEV * len(LANGUAGES)
-  print(N_SAMPLE_TEST)
-
-  HYPER_PARAMS_LST = [study_value['optuna_study'].best_trial.user_attrs["hyperparameters_all"] for study_key, study_value in hp_study_dic.items()]
-
-  # hypothesis template: always simple without context and without NLI for this paper
-  #HYPOTHESIS_TEMPLATE_LST = [hyperparams_dic["hypothesis_template"] for hyperparams_dic in HYPER_PARAMS_LST]  #if ("context" in hyperparams_dic["hypothesis_template"])
-  #HYPOTHESIS_TEMPLATE_LST = HYPOTHESIS_TEMPLATE_LST * len(LANGUAGES)
-  HYPOTHESIS_TEMPLATE_LST = ["template_not_nli"] * len(LANGUAGES)
-  print(HYPOTHESIS_TEMPLATE_LST)
-
-  HYPER_PARAMS_LST = [{key: dic[key] for key in dic if key!="hypothesis_template"} for dic in HYPER_PARAMS_LST]  # return dic with all elements, except hypothesis template
-  HYPER_PARAMS_LST_TEST = HYPER_PARAMS_LST
-  HYPER_PARAMS_LST_TEST = HYPER_PARAMS_LST_TEST * len(LANGUAGES)
-  print(HYPER_PARAMS_LST_TEST)
-
-else:
-    raise Exception("zero-shot classification not implemented")"""
-
-
-
-## intermediate text formatting function for testing code on manifesto-8 without NLI and without context
-# !! double check this code
-def format_text(df=None, text_format=None, embeddings=VECTORIZER, translated_text=True):
-    # ! translated_text is for df_test (false) or not df_train (true)
-    # ! review 'translated_text' - still up to date with updated code? can be removed?
-    #if (text_format == 'template_not_nli') and (translated_text == False) and (embeddings == "tfidf"):
-    #    df["text_prepared"] = df.text_original
-    #elif (text_format == 'template_not_nli') and (translated_text == True) and (embeddings == "tfidf"):
-    #    df["text_prepared"] = df.text_original_trans
-    if (text_format == 'template_not_nli') and (translated_text == False) and (embeddings == "transformer-mono"):
-        df["text_prepared"] = df.text_original
-    elif (text_format == 'template_not_nli') and (translated_text == True) and (embeddings == "transformer-mono"):
-        df["text_prepared"] = df.text_original_trans
-    elif (text_format == 'template_not_nli') and (embeddings == "transformer-multi"):
-        df["text_prepared"] = df.text_original
-    else:
-        raise Exception(f'format_text did not work for text_format == {text_format}, vectorizer == {embeddings}, translated_text == {translated_text}')
-
-    # ! special case for no-nmt-multi, don't have monolingual models - taking multilingual embeddings on single languages as proxy
-    #if (text_format == 'template_not_nli') and (embeddings == "embeddings-en") and (AUGMENTATION == "no-nmt-many"):
-    #    df["text_prepared"] = df.text_original_trans_embed_multi
-
-    return df.copy(deep=True)
-
+HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 40, 'seed': 42, 'per_device_train_batch_size': 16, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 128}]
+HYPER_PARAMS_LST = HYPER_PARAMS_LST * len(LANGUAGES)
+print(HYPER_PARAMS_LST)
 
 # FP16 if cuda and if not mDeBERTa
 fp16_bool = True if torch.cuda.is_available() else False
-if "mDeBERTa" in MODEL_NAME: fp16_bool = False  # mDeBERTa does not support FP16 yet
+if "mDeBERTa".lower() in MODEL_NAME.lower(): fp16_bool = False  # mDeBERTa does not support FP16 yet
 
 
 
 
-
-### run random cross-validation for hyperparameter search without a dev set
-np.random.seed(SEED_GLOBAL)
-
-### K example intervals loop
+#### K example intervals loop
+# will automatically only run once if only 1 element in HYPER_PARAMS_LST for runs with one good hp-value
 experiment_details_dic = {}
-for lang, n_max_sample, hyperparams, hypothesis_template in tqdm.tqdm(zip(LANGUAGES, N_SAMPLE_TEST, HYPER_PARAMS_LST_TEST, HYPOTHESIS_TEMPLATE_LST), desc="Iterations for different number of texts", leave=True):
+for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Iterations for different number of texts", leave=True):
   np.random.seed(SEED_GLOBAL)
   t_start = time.time()   # log how long training of model takes
 
-  ### select correct language for train sampling and test
-  ## Two different language scenarios
-  if "no-nmt-single" in AUGMENTATION:
-      df_train_lang = df_train.query("language_iso == @LANGUAGE_TRAIN & language_iso_trans == @LANGUAGE_TRAIN").copy(deep=True)
-      df_test_lang = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
-      if "multi" not in VECTORIZER:
-          raise Exception(f"Cannot use {VECTORIZER} if augmentation is {AUGMENTATION}")
-  elif "one2anchor" in AUGMENTATION:
-      df_train_lang = df_train.query("language_iso == @LANGUAGE_TRAIN & language_iso_trans == @LANGUAGE_ANCHOR").copy(deep=True)
-      # for test set - for non-multi, test on translated text, for multi algos test on original lang text
-      if "multi" not in VECTORIZER:
-          df_test_lang = df_test.query("language_iso == @lang & language_iso_trans == @LANGUAGE_ANCHOR").copy(deep=True)
-      elif "multi" in VECTORIZER:
-          df_test_lang = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
-  elif "one2many" in AUGMENTATION:
-      # augmenting this with other translations further down after sampling
-      df_train_lang = df_train.query("language_iso == @LANGUAGE_TRAIN & language_iso_trans == @LANGUAGE_TRAIN").copy(deep=True)
-      # for test set - for multi algos test on original lang text
-      if "multi" in VECTORIZER:
-          df_test_lang = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
-      elif "multi" not in VECTORIZER:
-          raise Exception(f"Cannot use {VECTORIZER} if augmentation is {AUGMENTATION}")
-
-  ## many2X scenarios
-  elif "no-nmt-many" in AUGMENTATION:
-      # separate analysis per lang if not multi
-      if "multi" not in VECTORIZER:
-          df_train_lang = df_train.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
-          df_test_lang = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
-      # multilingual models can analyse all original texts here
-      elif "multi" in VECTORIZER:
-          df_train_lang = df_train.query("language_iso == language_iso_trans").copy(deep=True)
-          df_test_lang = df_test.query("language_iso == language_iso_trans").copy(deep=True)
-  elif "many2anchor" in AUGMENTATION:
-      if "multi" not in VECTORIZER:
-          df_train_lang = df_train.query("language_iso_trans == @LANGUAGE_ANCHOR").copy(deep=True)
-          df_test_lang = df_test.query("language_iso_trans == @LANGUAGE_ANCHOR").copy(deep=True)
-      # multilingual models can analyse all original texts here. augmented below with anchor lang
-      elif "multi" in VECTORIZER:
-          df_train_lang = df_train.query("language_iso == language_iso_trans").copy(deep=True)
-          df_test_lang = df_test.query("language_iso == language_iso_trans").copy(deep=True)
-  elif "many2many" in AUGMENTATION:
-      # multilingual models can analyse all original texts here. can be augmented below with all other translations
-      if "multi" in VECTORIZER:
-          df_train_lang = df_train.query("language_iso == language_iso_trans").copy(deep=True)
-          df_test_lang = df_test.query("language_iso == language_iso_trans").copy(deep=True)
-      elif "multi" not in VECTORIZER:
-          raise Exception(f"Cannot use {VECTORIZER} if augmentation is {AUGMENTATION}")
-  else:
-      raise Exception("Issue with AUGMENTATION")
+  ### select correct language scenario for train sampling and testing
+  df_train_scenario, df_test_scenario = select_data_for_scenario_final_test(df_train=df_train, df_test=df_test, lang=lang, augmentation=AUGMENTATION, vectorizer=VECTORIZER, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR)
 
 
   # prepare loop
-  k_samples_experiment_dic = {"method": METHOD, "language_source": lang, "language_anchor": LANGUAGE_ANCHOR, "n_max_sample": n_max_sample, "model": MODEL_NAME, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "hyperparams": hyperparams}  # "trainer_args": train_args, "hypotheses": HYPOTHESIS_TYPE, "dataset_stats": dataset_stats_dic
+  k_samples_experiment_dic = {"method": METHOD, "language_source": lang, "language_anchor": LANGUAGE_ANCHOR, "n_sample": n_sample, "model": MODEL_NAME, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "hyperparams": hyperparams}  # "trainer_args": train_args, "hypotheses": HYPOTHESIS_TYPE, "dataset_stats": dataset_stats_dic
   f1_macro_lst = []
   f1_micro_lst = []
   accuracy_balanced_lst = []
@@ -381,102 +260,65 @@ for lang, n_max_sample, hyperparams, hypothesis_template in tqdm.tqdm(zip(LANGUA
   np.random.seed(SEED_GLOBAL)
   for random_seed_sample in tqdm.tqdm(np.random.choice(range(1000), size=CROSS_VALIDATION_REPETITIONS_FINAL), desc="Iterations for std", leave=True):
 
-    ## sampling
-    if n_max_sample == 999_999:  # all data, no sampling
-      df_train_samp = df_train_lang.copy(deep=True)
+    ## take sample in accordance with scenario
+    if n_sample == 999_999:  # all data, no sampling
+      df_train_scenario_samp = df_train_scenario.copy(deep=True)
     # same sample size per language for multiple language data scenarios
-    elif any(augmentation in AUGMENTATION for augmentation in ["no-nmt-many", "many2anchor", "many2many"]):
-        df_train_samp = df_train_lang.groupby(by="language_iso").apply(lambda x: x.sample(n=min(n_max_sample, len(x)), random_state=random_seed_sample).copy(deep=True))
+    elif AUGMENTATION in ["no-nmt-many", "many2anchor", "many2many"]:
+      df_train_scenario_samp = df_train_scenario.groupby(by="language_iso").apply(lambda x: x.sample(n=min(n_sample, len(x)), random_state=random_seed_sample).copy(deep=True))
     # one sample size for single language data scenario
     else:
-      df_train_samp = df_train_lang.sample(n=min(n_max_sample, len(df_train_lang)), random_state=random_seed_sample).copy(deep=True)
-    print("Number of training examples after sampling: ", len(df_train_samp), " . (but before cross-validation split) ")
+      df_train_scenario_samp = df_train_scenario.sample(n=min(n_sample, len(df_train_scenario)), random_state=random_seed_sample).copy(deep=True)
 
-    if (n_max_sample == 0) and (METHOD == "standard_dl"):
+    print("Number of test examples after sampling: ", len(df_test_scenario))
+    print("Number of training examples after sampling: ", len(df_train_scenario_samp))
+
+    if (n_sample == 0) and (METHOD == "standard_dl"):
       metric_step = {'accuracy_balanced': 0, 'accuracy_not_b': 0, 'f1_macro': 0, 'f1_micro': 0}
       f1_macro_lst.append(0)
       f1_micro_lst.append(0)
       accuracy_balanced_lst.append(0)
-      k_samples_experiment_dic.update({"n_train_total": len(df_train_samp), f"metrics_seed_{random_seed_sample}": metric_step})
+      k_samples_experiment_dic.update({"n_train_total": len(df_train_scenario_samp), f"metrics_seed_{random_seed_sample}": metric_step})
       break
 
 
     ### data augmentation on sample for multiling models + translation scenarios
     # general function - common with hp-search script
-    df_train_samp_augment = data_augmentation(df_train_scenario_samp=df_train_samp, df_train=df_train)
-    """## single language text scenarios
-    sample_sent_id = df_train_samp.sentence_id.unique()
-    if AUGMENTATION == "no-nmt-single":
-        df_train_samp_augment = df_train_samp.copy(deep=True)
-    elif AUGMENTATION == "one2anchor":
-        if "multi" not in VECTORIZER:
-            df_train_samp_augment = df_train_samp.copy(deep=True)
-        elif "multi" in VECTORIZER:
-            # augment by combining texts from train language with texts from train translated to target language
-            df_train_augment = df_train[(((df_train.language_iso == LANGUAGE_TRAIN) & (df_train.language_iso_trans == LANGUAGE_TRAIN)) | ((df_train.language_iso == LANGUAGE_TRAIN) & (df_train.language_iso_trans == lang)))].copy(deep=True)
-            df_train_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)
-        else:
-            raise Exception("Issue with VECTORIZER")
-    elif AUGMENTATION == "one2many":
-        if "multi" in VECTORIZER:
-            df_train_augment = df_train.query("language_iso == @LANGUAGE_TRAIN").copy(deep=True)  # can use all translations and original text (for single train lang) here
-            df_train_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
-        else:
-            raise Exception("AUGMENTATION == 'X2many' only works for multilingual vectorization")
-    ## multiple language text scenarios
-    elif AUGMENTATION == "no-nmt-many":
-        df_train_samp_augment = df_train_samp.copy(deep=True)
-    elif AUGMENTATION == "many2anchor":
-        if "multi" not in VECTORIZER:
-            df_train_samp_augment = df_train_samp.copy(deep=True)
-        elif "multi" in VECTORIZER:
-            # already have all original languages in the scenario. augmenting it with translated (to anchor) texts here. e.g. for 7*6=3500 original texts, adding 6*6=3000 texts, all translated to anchor (except anchor texts)
-            df_train_augment = df_train[(df_train.language_iso == df_train.language_iso_trans) | (df_train.language_iso_trans == LANGUAGE_ANCHOR)].copy(deep=True)
-            df_train_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
-    elif AUGMENTATION == "many2many":
-        if "multi" not in VECTORIZER:
-            df_train_samp_augment = df_train_samp.copy(deep=True)
-        elif "multi" in VECTORIZER:
-            # already have all original languages in the scenario. augmenting it with all other translated texts
-            df_train_augment = df_train.copy(deep=True)
-            df_train_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
-        #else:
-        #    raise Exception(f"AUGMENTATION == {AUGMENTATION} only works for multilingual vectorization")"""
+    df_train_scenario_samp_augment = data_augmentation(df_train_scenario_samp=df_train_scenario_samp, df_train=df_train, lang=lang, augmentation=AUGMENTATION, vectorizer=VECTORIZER, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR)
+
+    print("Number of training examples after (potential) augmentation: ", len(df_train_scenario_samp_augment))
 
 
-    # chose the text format depending on hyperparams
-    # returns "text_prepared" column, e.g. with concatenated sentences
-    df_train_samp_augment = format_text(df=df_train_samp_augment, text_format=hypothesis_template, embeddings=VECTORIZER, translated_text=False)
-    df_train_samp_augment = df_train_samp_augment.sample(frac=1.0, random_state=random_seed_sample)  # shuffle df_train
-    df_test_formatted = format_text(df=df_test_lang, text_format=hypothesis_template, embeddings=VECTORIZER, translated_text=True)
-
-    # format train and dev set for NLI etc.
-    #if METHOD == "nli":
-    #  df_train_samp = format_nli_trainset(df_train=df_train_samp_augment, hypo_label_dic=hypothesis_hyperparams_dic[hypothesis_template], random_seed=SEED_GLOBAL)
-    #  df_test_formatted = format_nli_testset(df_test=df_test_formatted, hypo_label_dic=hypothesis_hyperparams_dic[hypothesis_template])  # hypo_label_dic_short , hypo_label_dic_long
+    ### text pre-processing
+    # !? double check if it's correct to just always take the "text_original_trans" column for both BERT models. should be correct because contains original text if iso-original == iso-trans. This should be done correctly upstream
+    df_train_scenario_samp_augment_textcol, df_test_scenario_textcol = choose_preprocessed_text(df_train_scenario_samp_augment=df_train_scenario_samp_augment, df_test_scenario=df_test_scenario, augmentation=AUGMENTATION, vectorizer=VECTORIZER, vectorizer_sklearn=None, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR, method=METHOD)
+    df_train_scenario_samp_augment_textcol = df_train_scenario_samp_augment_textcol.sample(frac=1.0, random_state=random_seed_sample)
 
     clean_memory()
     model, tokenizer = load_model_tokenizer(model_name=MODEL_NAME, method=METHOD, label_text_alphabetical=LABEL_TEXT_ALPHABETICAL)
-    encoded_dataset = tokenize_datasets(df_train_samp=df_train_samp_augment, df_test=df_test_formatted, tokenizer=tokenizer, method=METHOD, max_length=None)
+    encoded_dataset = tokenize_datasets(df_train_samp=df_train_scenario_samp_augment_textcol, df_test=df_test_scenario_textcol, tokenizer=tokenizer, method=METHOD, max_length=None)
 
-    train_args = set_train_args(hyperparams_dic=hyperparams, training_directory=TRAINING_DIRECTORY, disable_tqdm=DISABLE_TQDM, evaluation_strategy="no", fp16=fp16_bool)  # seed=random_seed_sample ! can the order to data loading via seed (but then different from HP search)
+    train_args = set_train_args(hyperparams_dic=hyperparams, training_directory=TRAINING_DIRECTORY, disable_tqdm=False, evaluation_strategy="no", fp16=fp16_bool)  # seed=random_seed_sample ! can the order to data loading via seed (but then different from HP search)
     trainer = create_trainer(model=model, tokenizer=tokenizer, encoded_dataset=encoded_dataset, train_args=train_args, 
                              method=METHOD, label_text_alphabetical=LABEL_TEXT_ALPHABETICAL)
     clean_memory()
 
-    if n_max_sample != 0:
+
+    if n_sample != 0:
       trainer.train()
 
-    # metrics
+
+    ### metrics
     results = trainer.evaluate()  # eval_dataset=encoded_dataset_test
 
-    k_samples_experiment_dic.update({"n_train_total": len(df_train_samp), f"metrics_seed_{random_seed_sample}": results})
+    k_samples_experiment_dic.update({"n_train_total": len(df_train_scenario_samp), f"metrics_seed_{random_seed_sample}": results})
     f1_macro_lst.append(results["eval_f1_macro"])
     f1_micro_lst.append(results["eval_f1_micro"])
     accuracy_balanced_lst.append(results["eval_accuracy_balanced"])
 
-    if (n_max_sample == 0) or (n_max_sample == 999_999):  # only one inference necessary on same test set in case of zero-shot or full dataset
+    if (n_sample == 0) or (n_sample == 999_999):  # only one inference necessary on same test set in case of zero-shot or full dataset
       break
+
 
   # timer 
   t_end = time.time()
@@ -494,23 +336,20 @@ for lang, n_max_sample, hyperparams, hypothesis_template in tqdm.tqdm(zip(LANGUA
   metrics_mean = {"f1_macro_mean": f1_macro_mean, "f1_micro_mean": f1_micro_mean, "accuracy_balanced_mean": accuracy_balanced_mean, "f1_macro_std": f1_macro_std, "f1_micro_std": f1_micro_std, "accuracy_balanced_std": accuracy_balanced_std}
   k_samples_experiment_dic.update({"metrics_mean": metrics_mean, "dataset": DATASET_NAME, "n_classes": len(LABEL_TEXT_ALPHABETICAL), "train_eval_time_per_model": t_total})
 
-  # harmonise n_sample file title
-  while len(str(n_max_sample)) <= 4:
-    n_max_sample = "0" + str(n_max_sample)
 
   # update of overall experiment dic
-  experiment_details_dic_step = {f"experiment_sample_{n_max_sample}_{METHOD}_{MODEL_NAME}_{lang}": k_samples_experiment_dic}
+  experiment_details_dic_step = {f"experiment_sample_{n_sample_string}_{METHOD}_{MODEL_NAME}_{lang}": k_samples_experiment_dic}
   experiment_details_dic.update(experiment_details_dic_step)
 
 
   ## stop loop for multiple language case - no separate iterations per language necessary
-  if "many2anchor" in AUGMENTATION:
-    break
-  if ("multi" in VECTORIZER) and (any(augmentation in AUGMENTATION for augmentation in ["no-nmt-many", "many2many"])):  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
-    break
+  #if "many2anchor" in AUGMENTATION:
+  #  break
+  #if ("multi" in VECTORIZER) and (any(augmentation in AUGMENTATION for augmentation in ["no-nmt-many", "many2many"])):  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
+  #  break
 
   ## save experiment dic after each new study
-  #joblib.dump(experiment_details_dic_step, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{n_max_sample}samp_{HYPERPARAM_STUDY_DATE}.pkl")
+  #joblib.dump(experiment_details_dic_step, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}.pkl")
 
 
 
@@ -552,9 +391,9 @@ experiment_details_dic = {**experiment_details_dic, **experiment_summary_dic}
 
 
 if EXECUTION_TERMINAL == True:
-  joblib.dump(experiment_details_dic, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{VECTORIZER}_{n_max_sample}samp_{AUGMENTATION}_{HYPERPARAM_STUDY_DATE}.pkl")
+  joblib.dump(experiment_details_dic, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}.pkl")
 elif EXECUTION_TERMINAL == False:
-  joblib.dump(experiment_details_dic, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{VECTORIZER}_{n_max_sample}samp_{AUGMENTATION}_{HYPERPARAM_STUDY_DATE}_t.pkl")
+  joblib.dump(experiment_details_dic, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}_t.pkl")
 
 
 print("Run done.")

@@ -17,75 +17,105 @@ cd ./multilingual-repo
 # install packages
 pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
-pip uninstall -y codecarbon
-python -m spacy download en_core_web_lg
+#pip uninstall -y codecarbon
+#python -m spacy download en_core_web_md
+
+## scenarios
+# "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
+# "tfidf", "embeddings-en", "embeddings-multi"
 
 
-### Logistic Regression
-## sentiment-news-econ
-python analysis-classical-hyperparams.py --n_trials 60 --n_trials_sampling 30 --n_trials_pruning 40 --n_cross_val_hyperparam 2 --context --dataset "sentiment-news-econ" --sample_interval 100 500 1000 --method "classical_ml" --model "logistic" --hyperparam_study_date 20220713 --vectorizer "tfidf"
-python analysis-classical-run.py --dataset "sentiment-news-econ" --sample_interval 100 500 1000 --method "classical_ml" --model "logistic" --n_cross_val_final 3 --hyperparam_study_date 20220713 --vectorizer "tfidf" --zeroshot
-
-## coronanet
-python analysis-classical-hyperparams.py --n_trials 60 --n_trials_sampling 30 --n_trials_pruning 40 --n_cross_val_hyperparam 2 --context --dataset "coronanet" --sample_interval 100 500 1000 --method "classical_ml" --model "logistic" --hyperparam_study_date 20220713 --vectorizer "tfidf"
-python analysis-classical-run.py --dataset "coronanet" --sample_interval 100 500 1000 --method "classical_ml" --model "logistic" --n_cross_val_final 3 --hyperparam_study_date 20220713 --vectorizer "tfidf" --zeroshot
-
-## cap-sotu
-python analysis-classical-hyperparams.py --n_trials 60 --n_trials_sampling 30 --n_trials_pruning 40 --n_cross_val_hyperparam 2 --context --dataset "cap-sotu" --sample_interval 100 500 1000 --method "classical_ml" --model "logistic" --hyperparam_study_date 20220713 --vectorizer "tfidf"
-python analysis-classical-run.py --dataset "cap-sotu" --sample_interval 100 500 1000 --method "classical_ml" --model "logistic" --n_cross_val_final 3 --hyperparam_study_date 20220713 --vectorizer "tfidf" --zeroshot
-
-## cap-us-court
-python analysis-classical-hyperparams.py --n_trials 60 --n_trials_sampling 30 --n_trials_pruning 40 --n_cross_val_hyperparam 2 --context --dataset "cap-us-court" --sample_interval 100 500 1000 --method "classical_ml" --model "logistic" --hyperparam_study_date 20220713 --vectorizer "tfidf"
-python analysis-classical-run.py --dataset "cap-us-court" --sample_interval 100 500 1000 --method "classical_ml" --model "logistic" --n_cross_val_final 3 --hyperparam_study_date 20220713 --vectorizer "tfidf" --zeroshot
-
-## manifesto-8
-python analysis-classical-hyperparams.py --n_trials 60 --n_trials_sampling 30 --n_trials_pruning 40 --n_cross_val_hyperparam 2 --context --dataset "manifesto-8" --sample_interval 100 500 1000 --method "classical_ml" --model "logistic" --hyperparam_study_date 20220713 --vectorizer "tfidf"
-python analysis-classical-run.py --dataset "manifesto-8" --sample_interval 100 500 1000 --method "classical_ml" --model "logistic" --n_cross_val_final 3 --hyperparam_study_date 20220713 --vectorizer "tfidf" --zeroshot
-
-## manifesto-military
-python analysis-classical-hyperparams.py --n_trials 60 --n_trials_sampling 30 --n_trials_pruning 40 --n_cross_val_hyperparam 2 --context --dataset "manifesto-military" --sample_interval 100 500 1000 --method "classical_ml" --model "logistic" --hyperparam_study_date 20220713 --vectorizer "tfidf"
-python analysis-classical-run.py --dataset "manifesto-military" --sample_interval 100 500 1000 --method "classical_ml" --model "logistic" --n_cross_val_final 3 --hyperparam_study_date 20220713 --vectorizer "tfidf" --zeroshot
-
-## manifesto-morality
-python analysis-classical-hyperparams.py --n_trials 60 --n_trials_sampling 30 --n_trials_pruning 40 --n_cross_val_hyperparam 2 --context --dataset "manifesto-morality" --sample_interval 100 500 1000 --method "classical_ml" --model "logistic" --hyperparam_study_date 20220713 --vectorizer "tfidf"
-python analysis-classical-run.py --dataset "manifesto-morality" --sample_interval 100 500 1000 --method "classical_ml" --model "logistic" --n_cross_val_final 3 --hyperparam_study_date 20220713 --vectorizer "tfidf" --zeroshot
-
-## manifesto-protectionism
-python analysis-classical-hyperparams.py --n_trials 60 --n_trials_sampling 30 --n_trials_pruning 40 --n_cross_val_hyperparam 2 --context --dataset "manifesto-protectionism" --sample_interval 100 500 1000 --method "classical_ml" --model "logistic" --hyperparam_study_date 20220713 --vectorizer "tfidf"
-python analysis-classical-run.py --dataset "manifesto-protectionism" --sample_interval 100 500 1000 --method "classical_ml" --model "logistic" --n_cross_val_final 3 --hyperparam_study_date 20220713 --vectorizer "tfidf" --zeroshot
+## no-nmt-single
+# tfidf
+# embeddings-en
+# embeddings-multi
+python analysis-classical-hyperparams.py --n_trials 10 --n_trials_sampling 7 --n_trials_pruning 7 --n_cross_val_hyperparam 2 \
+                                         --dataset "manifesto-8" --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" \
+                                         --augmentation_nmt "no-nmt-single" --model "logistic" --vectorizer "embeddings-multi" --method "classical_ml" \
+                                         --sample_interval 300 --hyperparam_study_date 20221026  &> ./results/manifesto-8/logs/hp-logistic-no-nmt-single-embeddings-multi-logs.txt
 
 
+## one2anchor
+# tfidf
+python analysis-classical-hyperparams.py --n_trials 10 --n_trials_sampling 7 --n_trials_pruning 7 --n_cross_val_hyperparam 2 \
+                                         --dataset "manifesto-8" --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" \
+                                         --augmentation_nmt "one2anchor" --model "logistic" --vectorizer "tfidf" --method "classical_ml" \
+                                         --sample_interval 300 --hyperparam_study_date 20221026 &> ./results/manifesto-8/logs/hp-logistic-one2anchor-tfidf-logs.txt
+# embeddings-en
+python analysis-classical-hyperparams.py --n_trials 10 --n_trials_sampling 7 --n_trials_pruning 7 --n_cross_val_hyperparam 2 \
+                                         --dataset "manifesto-8" --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" \
+                                         --augmentation_nmt "one2anchor" --model "logistic" --vectorizer "embeddings-en" --method "classical_ml" \
+                                         --sample_interval 300 --hyperparam_study_date 20221026 &> ./results/manifesto-8/logs/hp-logistic-one2anchor-embeddings-en-logs.txt
+# embeddings-multi
+python analysis-classical-hyperparams.py --n_trials 10 --n_trials_sampling 7 --n_trials_pruning 7 --n_cross_val_hyperparam 2 \
+                                         --dataset "manifesto-8" --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" \
+                                         --augmentation_nmt "one2anchor" --model "logistic" --vectorizer "embeddings-multi" --method "classical_ml" \
+                                         --sample_interval 300 --hyperparam_study_date 20221026 &> ./results/manifesto-8/logs/hp-logistic-one2anchor-embeddings-multi-logs.txt
 
-### SVM
-## sentiment-news-econ
-python analysis-classical-hyperparams.py --n_trials 60 --n_trials_sampling 30 --n_trials_pruning 40 --n_cross_val_hyperparam 2 --context --dataset "sentiment-news-econ" --sample_interval 100 500 1000 --method "classical_ml" --model "SVM" --hyperparam_study_date 20220713 --vectorizer "tfidf"
-python analysis-classical-run.py --dataset "sentiment-news-econ" --sample_interval 100 500 1000 --method "classical_ml" --model "SVM" --n_cross_val_final 3 --hyperparam_study_date 20220713 --vectorizer "tfidf" --zeroshot
 
-## coronanet
-python analysis-classical-hyperparams.py --n_trials 60 --n_trials_sampling 30 --n_trials_pruning 40 --n_cross_val_hyperparam 2 --context --dataset "coronanet" --sample_interval 100 500 1000 --method "classical_ml" --model "SVM" --hyperparam_study_date 20220713 --vectorizer "tfidf"
-python analysis-classical-run.py --dataset "coronanet" --sample_interval 100 500 1000 --method "classical_ml" --model "SVM" --n_cross_val_final 3 --hyperparam_study_date 20220713 --vectorizer "tfidf" --zeroshot
+## one2many
+# tfidf
+# embeddings-en
+# embeddings-multi
+python analysis-classical-hyperparams.py --n_trials 10 --n_trials_sampling 7 --n_trials_pruning 7 --n_cross_val_hyperparam 2 \
+                                         --dataset "manifesto-8" --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" \
+                                         --augmentation_nmt "one2many" --model "logistic" --vectorizer "embeddings-multi" --method "classical_ml" \
+                                         --sample_interval 300 --hyperparam_study_date 20221026 &> ./results/manifesto-8/logs/hp-logistic-one2many-embeddings-multi-logs.txt
 
-## cap-sotu
-python analysis-classical-hyperparams.py --n_trials 60 --n_trials_sampling 30 --n_trials_pruning 40 --n_cross_val_hyperparam 2 --context --dataset "cap-sotu" --sample_interval 100 500 1000 --method "classical_ml" --model "SVM" --hyperparam_study_date 20220713 --vectorizer "tfidf"
-python analysis-classical-run.py --dataset "cap-sotu" --sample_interval 100 500 1000 --method "classical_ml" --model "SVM" --n_cross_val_final 3 --hyperparam_study_date 20220713 --vectorizer "tfidf" --zeroshot
 
-## cap-us-court
-python analysis-classical-hyperparams.py --n_trials 60 --n_trials_sampling 30 --n_trials_pruning 40 --n_cross_val_hyperparam 2 --context --dataset "cap-us-court" --sample_interval 100 500 1000 --method "classical_ml" --model "SVM" --hyperparam_study_date 20220713 --vectorizer "tfidf"
-python analysis-classical-run.py --dataset "cap-us-court" --sample_interval 100 500 1000 --method "classical_ml" --model "SVM" --n_cross_val_final 3 --hyperparam_study_date 20220713 --vectorizer "tfidf" --zeroshot
+## no-nmt-many
+# tfidf
+python analysis-classical-hyperparams.py --n_trials 10 --n_trials_sampling 7 --n_trials_pruning 7 --n_cross_val_hyperparam 2 \
+                                         --dataset "manifesto-8" --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" \
+                                         --augmentation_nmt "no-nmt-many" --model "logistic" --vectorizer "tfidf" --method "classical_ml" \
+                                         --sample_interval 300 --hyperparam_study_date 20221026 &> ./results/manifesto-8/logs/hp-logistic-no-nmt-many-tfidf-logs.txt
+# embeddings-en
+python analysis-classical-hyperparams.py --n_trials 10 --n_trials_sampling 7 --n_trials_pruning 7 --n_cross_val_hyperparam 2 \
+                                         --dataset "manifesto-8" --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" \
+                                         --augmentation_nmt "no-nmt-many" --model "logistic" --vectorizer "embeddings-en" --method "classical_ml" \
+                                         --sample_interval 300 --hyperparam_study_date 20221026 &> ./results/manifesto-8/logs/hp-logistic-no-nmt-many-embeddings-en-logs.txt
+# embeddings-multi
+python analysis-classical-hyperparams.py --n_trials 10 --n_trials_sampling 7 --n_trials_pruning 7 --n_cross_val_hyperparam 2 \
+                                         --dataset "manifesto-8" --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" \
+                                         --augmentation_nmt "no-nmt-many" --model "logistic" --vectorizer "embeddings-multi" --method "classical_ml" \
+                                         --sample_interval 300 --hyperparam_study_date 20221026 &> ./results/manifesto-8/logs/hp-logistic-no-nmt-many-embeddings-multi-logs.txt
 
-## manifesto-8
-python analysis-classical-hyperparams.py --n_trials 60 --n_trials_sampling 30 --n_trials_pruning 40 --n_cross_val_hyperparam 2 --context --dataset "manifesto-8" --sample_interval 100 500 1000 --method "classical_ml" --model "SVM" --hyperparam_study_date 20220713 --vectorizer "tfidf"
-python analysis-classical-run.py --dataset "manifesto-8" --sample_interval 100 500 1000 --method "classical_ml" --model "SVM" --n_cross_val_final 3 --hyperparam_study_date 20220713 --vectorizer "tfidf" --zeroshot
 
-## manifesto-military
-python analysis-classical-hyperparams.py --n_trials 60 --n_trials_sampling 30 --n_trials_pruning 40 --n_cross_val_hyperparam 2 --context --dataset "manifesto-military" --sample_interval 100 500 1000 --method "classical_ml" --model "SVM" --hyperparam_study_date 20220713 --vectorizer "tfidf"
-python analysis-classical-run.py --dataset "manifesto-military" --sample_interval 100 500 1000 --method "classical_ml" --model "SVM" --n_cross_val_final 3 --hyperparam_study_date 20220713 --vectorizer "tfidf" --zeroshot
+## many2anchor
+# tfidf
+python analysis-classical-hyperparams.py --n_trials 10 --n_trials_sampling 7 --n_trials_pruning 7 --n_cross_val_hyperparam 2 \
+                                         --dataset "manifesto-8" --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" \
+                                         --augmentation_nmt "many2anchor" --model "logistic" --vectorizer "tfidf" --method "classical_ml" \
+                                         --sample_interval 300 --hyperparam_study_date 20221026 &> ./results/manifesto-8/logs/hp-logistic-many2anchor-tfidf-logs.txt
+# embeddings-en
+python analysis-classical-hyperparams.py --n_trials 10 --n_trials_sampling 7 --n_trials_pruning 7 --n_cross_val_hyperparam 2 \
+                                         --dataset "manifesto-8" --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" \
+                                         --augmentation_nmt "many2anchor" --model "logistic" --vectorizer "embeddings-en" --method "classical_ml" \
+                                         --sample_interval 300 --hyperparam_study_date 20221026 &> ./results/manifesto-8/logs/hp-logistic-many2anchor-embeddings-en-logs.txt
+# embeddings-multi
+python analysis-classical-hyperparams.py --n_trials 10 --n_trials_sampling 7 --n_trials_pruning 7 --n_cross_val_hyperparam 2 \
+                                         --dataset "manifesto-8" --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" \
+                                         --augmentation_nmt "many2anchor" --model "logistic" --vectorizer "embeddings-multi" --method "classical_ml" \
+                                         --sample_interval 300 --hyperparam_study_date 20221026 &> ./results/manifesto-8/logs/hp-logistic-many2anchor-embeddings-multi-logs.txt
 
-## manifesto-morality
-python analysis-classical-hyperparams.py --n_trials 60 --n_trials_sampling 30 --n_trials_pruning 40 --n_cross_val_hyperparam 2 --context --dataset "manifesto-morality" --sample_interval 100 500 1000 --method "classical_ml" --model "SVM" --hyperparam_study_date 20220713 --vectorizer "tfidf"
-python analysis-classical-run.py --dataset "manifesto-morality" --sample_interval 100 500 1000 --method "classical_ml" --model "SVM" --n_cross_val_final 3 --hyperparam_study_date 20220713 --vectorizer "tfidf" --zeroshot
 
-## manifesto-protectionism
-python analysis-classical-hyperparams.py --n_trials 60 --n_trials_sampling 30 --n_trials_pruning 40 --n_cross_val_hyperparam 2 --context --dataset "manifesto-protectionism" --sample_interval 100 500 1000 --method "classical_ml" --model "SVM" --hyperparam_study_date 20220713 --vectorizer "tfidf"
-python analysis-classical-run.py --dataset "manifesto-protectionism" --sample_interval 100 500 1000 --method "classical_ml" --model "SVM" --n_cross_val_final 3 --hyperparam_study_date 20220713 --vectorizer "tfidf" --zeroshot
+## many2many
+# tfidf
+python analysis-classical-hyperparams.py --n_trials 10 --n_trials_sampling 7 --n_trials_pruning 7 --n_cross_val_hyperparam 2 \
+                                         --dataset "manifesto-8" --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" \
+                                         --augmentation_nmt "many2many" --model "logistic" --vectorizer "tfidf" --method "classical_ml" \
+                                         --sample_interval 300 --hyperparam_study_date 20221026 &> ./results/manifesto-8/logs/hp-logistic-many2many-tfidf-logs.txt
+# embeddings-en
+python analysis-classical-hyperparams.py --n_trials 10 --n_trials_sampling 7 --n_trials_pruning 7 --n_cross_val_hyperparam 2 \
+                                         --dataset "manifesto-8" --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" \
+                                         --augmentation_nmt "many2many" --model "logistic" --vectorizer "embeddings-en" --method "classical_ml" \
+                                         --sample_interval 300 --hyperparam_study_date 20221026 &> ./results/manifesto-8/logs/hp-logistic-many2many-embeddings-en-logs.txt
+# embeddings-multi
+python analysis-classical-hyperparams.py --n_trials 10 --n_trials_sampling 7 --n_trials_pruning 7 --n_cross_val_hyperparam 2 \
+                                         --dataset "manifesto-8" --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" \
+                                         --augmentation_nmt "many2many" --model "logistic" --vectorizer "embeddings-multi" --method "classical_ml" \
+                                         --sample_interval 300 --hyperparam_study_date 20221026 &> ./results/manifesto-8/logs/hp-logistic-many2many-embeddings-multi-logs.txt
 
+
+#python analysis-classical-hyperparams.py --n_trials 60 --n_trials_sampling 30 --n_trials_pruning 40 --n_cross_val_hyperparam 2 --context --dataset "sentiment-news-econ" --sample_interval 100 500 1000 --method "classical_ml" --model "logistic" --hyperparam_study_date 20220713 --vectorizer "tfidf"
+#python analysis-classical-run.py --dataset "sentiment-news-econ" --sample_interval 100 500 1000 --method "classical_ml" --model "logistic" --n_cross_val_final 3 --hyperparam_study_date 20220713 --vectorizer "tfidf" --zeroshot

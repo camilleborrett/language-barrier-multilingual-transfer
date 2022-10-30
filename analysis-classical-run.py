@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-# coding: utf-8
+
 
 import sys
 if sys.stdin.isatty():
@@ -59,9 +58,11 @@ import argparse
 parser = argparse.ArgumentParser(description='Do final run with best hyperparameters (on different languages, datasets, algorithms)')
 
 ## Add the arguments
-# arguments for hyperparameter search
-#parser.add_argument('-context', '--context', action='store_true',
-#                    help='Take surrounding context sentences into account. Only use flag if context available.')
+# arguments only for test script
+parser.add_argument('-cvf', '--n_cross_val_final', type=int, default=3,
+                    help='For how many different random samples should the algorithm be tested at a given sample size?')
+parser.add_argument('-zeroshot', '--zeroshot', action='store_true',
+                    help='Start training run with a zero-shot run')
 
 # arguments for both hyperparam and test script
 parser.add_argument('-lang', '--languages', type=str, nargs='+',
@@ -83,19 +84,9 @@ parser.add_argument('-model', '--model', type=str,
                     help='Model name. String must lead to any Hugging Face model or "SVM" or "logistic". Must fit to "method" argument.')
 parser.add_argument('-vectorizer', '--vectorizer', type=str,
                     help='How to vectorize text. Options: "tfidf" or "embeddings-en" or "embeddings-multi"')
-#parser.add_argument('-tqdm', '--disable_tqdm', action='store_true',
-#                    help='Adding the flag enables tqdm for progress tracking')
-#parser.add_argument('-carbon', '--carbon_tracking', action='store_true',
-#                    help='Adding the flag enables carbon tracking via CodeCarbon')  # not used, as CodeCarbon caused bugs https://github.com/mlco2/codecarbon/issues/305
-
 parser.add_argument('-hp_date', '--hyperparam_study_date', type=str,
                     help='Date string to specifiy which hyperparameter run should be selected. e.g. "20220304"')
 
-# arguments only for test script
-parser.add_argument('-cvf', '--n_cross_val_final', type=int, default=3,
-                    help='For how many different random samples should the algorithm be tested at a given sample size?')
-parser.add_argument('-zeroshot', '--zeroshot', action='store_true',
-                    help='Start training run with a zero-shot run')
 
 
 
@@ -112,21 +103,26 @@ if EXECUTION_TERMINAL == True:
 
 elif EXECUTION_TERMINAL == False:
   # parse args if not in terminal, but in script
-  args = parser.parse_args(["--n_cross_val_final", "2",
+  args = parser.parse_args(["--n_cross_val_final", "2",  #--zeroshot
                             "--dataset", "manifesto-8",
                             "--languages", "en", "de", "es", "fr", "tr", "ru", "ko",
-                            "--language_anchor", "en", "--language_train", "en",
-                            "--augmentation_nmt", "many2anchor",  #"no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
-                            "--sample_interval", "500",  # "100", "500", "1000", "2500", "5000", #"10000",
-                            "--method", "classical_ml", "--model", "SVM",
+                            "--language_anchor", "en", "--language_train", "en",  # in multiling scenario --language_train needs to be list of lang (?)
+                            "--augmentation_nmt", "no-nmt-single",  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
+                            "--sample_interval", "300",  #"100", "500", "1000", #"2500", "5000", #"10000",
+                            "--method", "classical_ml", "--model", "logistic",  # SVM, logistic
                             "--vectorizer", "embeddings-multi",  # "tfidf", "embeddings-en", "embeddings-multi"
-                            "--hyperparam_study_date", "20221023"])
+                            "--hyperparam_study_date", "20221026"])
 
+
+### args only for test runs
+CROSS_VALIDATION_REPETITIONS_FINAL = args.n_cross_val_final
+ZEROSHOT = args.zeroshot
 
 ### args for both hyperparameter tuning and test runs
 # choose dataset
 DATASET_NAME = args.dataset  # "sentiment-news-econ" "coronanet" "cap-us-court" "cap-sotu" "manifesto-8" "manifesto-military" "manifesto-protectionism" "manifesto-morality" "manifesto-nationalway" "manifesto-44" "manifesto-complex"
 LANGUAGES = args.languages
+LANGUAGES = LANGUAGES[:3]
 LANGUAGE_TRAIN = args.language_train
 LANGUAGE_ANCHOR = args.language_anchor
 AUGMENTATION = args.augmentation_nmt
@@ -139,12 +135,8 @@ METHOD = args.method  # "standard_dl", "nli", "classical_ml"
 MODEL_NAME = args.model  # "SVM"
 
 HYPERPARAM_STUDY_DATE = args.hyperparam_study_date  #"20220304"
-#DISABLE_TQDM = args.disable_tqdm
-#CARBON_TRACKING = args.carbon_tracking
 
-### args only for test runs
-CROSS_VALIDATION_REPETITIONS_FINAL = args.n_cross_val_final
-ZEROSHOT = args.zeroshot
+
 
 
 
@@ -169,12 +161,6 @@ else:
 
 print(DATASET_NAME)
 
-
-## fill na for non translated texts to facilitate downstream analysis
-#df_train["language_iso_trans"] = [language_iso if pd.isna(language_iso_trans) else language_iso_trans for language_iso, language_iso_trans in zip(df_train.language_iso, df_train.language_iso_trans)]
-#df_train["text_original_trans"] = [text_original if pd.isna(text_original_trans) else text_original_trans for text_original, text_original_trans in zip(df_train.text_original, df_train.text_original_trans)]
-#df_test["language_iso_trans"] = [language_iso if pd.isna(language_iso_trans) else language_iso_trans for language_iso, language_iso_trans in zip(df_test.language_iso, df_test.language_iso_trans)]
-#df_test["text_original_trans"] = [text_original if pd.isna(text_original_trans) else text_original_trans for text_original, text_original_trans in zip(df_test.text_original, df_test.text_original_trans)]
 
 
 
@@ -223,50 +209,9 @@ import helpers
 import importlib  # in case of manual updates in .py file
 importlib.reload(helpers)
 
-from helpers import data_preparation, compute_metrics_classical_ml, clean_memory
-
-### load suitable hypotheses_hyperparameters and text formatting function
-from hypothesis_hyperparams import hypothesis_hyperparams
-
-
-### load the hypothesis hyperparameters for the respective dataset. For classical_ml this only determines the input text format - sentence with surrounding sentences, or not
-hypothesis_hyperparams_dic, format_text = hypothesis_hyperparams(dataset_name=DATASET_NAME, df_cl=df_cl)
-
-# check which template fits to standard_dl/classical_ml or NLI
-print("")
-print([template for template in list(hypothesis_hyperparams_dic.keys()) if "not_nli" in template])
-print([template for template in list(hypothesis_hyperparams_dic.keys()) if "not_nli" not in template])
-
-# in case -context flag is passed, but dataset actually does not have context
-# ! do not use context, because some languages have too little data and makes train-test split problematic
-#classical_templates = [template for template in list(hypothesis_hyperparams_dic.keys()) if "not_nli" in template]
-#if "context" not in classical_templates:
-#  CONTEXT = False
-
-
-
-
-##### prepare texts for classical ML TF-IDF
-## embeddings from transformers are already added in data frame upstream
-
-## lemmatize text
-if VECTORIZER == "tfidf":
-    nlp = spacy.load("en_core_web_md")
-    np.random.seed(SEED_GLOBAL)
-    def lemmatize(text_lst):
-        texts_lemma = []
-        for doc in nlp.pipe(text_lst, n_process=4):  # disable=["tok2vec", "ner"] "tagger", "attribute_ruler", "parser",
-            doc_lemmas = " ".join([token.lemma_ for token in doc])
-            texts_lemma.append(doc_lemmas)
-        return texts_lemma
-
-    ## lemmatize depending on dataset
-    if "text_original" in df_cl.columns:
-        df_train["text_original"] = lemmatize(df_train.text_original)
-        df_test["text_original"] = lemmatize(df_test.text_original)
-    else:
-        df_train["text"] = lemmatize(df_train.text)
-        df_test["text"] = lemmatize(df_test.text)
+from helpers import compute_metrics_classical_ml, clean_memory
+## functions for scenario data selection and augmentation
+from helpers import select_data_for_scenario_hp_search, select_data_for_scenario_final_test, data_augmentation, sample_for_scenario, choose_preprocessed_text
 
 
 
@@ -274,178 +219,55 @@ if VECTORIZER == "tfidf":
 
 # ## Final test with best hyperparameters
 
-### parameters for final tests with best hyperparams
-## load existing studies with hyperparams
+## hyperparameters for final tests
 # selective load one decent set of hps for testing
-hp_study_dic = joblib.load("/Users/moritzlaurer/Dropbox/PhD/Papers/nli/snellius/NLI-experiments/results/manifesto-8/optuna_study_SVM_tfidf_01000samp_20221006.pkl")
+#hp_study_dic = joblib.load("/Users/moritzlaurer/Dropbox/PhD/Papers/nli/snellius/NLI-experiments/results/manifesto-8/optuna_study_SVM_tfidf_01000samp_20221006.pkl")
 
+# select best hp based on hp-search
+n_sample = N_SAMPLE_DEV[0]
+n_sample_string = N_SAMPLE_DEV[0]
+while len(str(n_sample_string)) <= 4:
+    n_sample_string = "0" + str(n_sample_string)
 
-"""hp_study_dic = {}
-for n_sample in N_SAMPLE_DEV:
-  while len(str(n_sample)) <= 4:
-    n_sample = "0" + str(n_sample)
-  if EXECUTION_TERMINAL == True:
-      if VECTORIZER == "tfidf":
-        hp_study_dic_step = joblib.load(f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{VECTORIZER}_{n_sample}samp_{HYPERPARAM_STUDY_DATE}.pkl")
-      elif VECTORIZER == "embeddings":
-        hp_study_dic_step = joblib.load(f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{VECTORIZER}_{n_sample}samp_{HYPERPARAM_STUDY_DATE}.pkl")
-  elif EXECUTION_TERMINAL == False:
-      if VECTORIZER == "tfidf":
-        hp_study_dic_step = joblib.load(f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{VECTORIZER}_{n_sample}samp_{HYPERPARAM_STUDY_DATE}_local_test.pkl")
-      elif VECTORIZER == "embeddings":
-        hp_study_dic_step = joblib.load(f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{VECTORIZER}_{n_sample}samp_{HYPERPARAM_STUDY_DATE}_local_test.pkl")
-  hp_study_dic.update(hp_study_dic_step)"""
+if EXECUTION_TERMINAL == True:
+    hp_study_dic = joblib.load(f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}.pkl")
+    hp_study_dic = next(iter(hp_study_dic.values()))  # unnest dic
+elif EXECUTION_TERMINAL == False:
+    #hp_study_dic = joblib.load(f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_many2many_embeddings-en_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}.pkl")
+    hp_study_dic = joblib.load(f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}.pkl")
+    hp_study_dic = next(iter(hp_study_dic.values()))  # unnest dic
 
-
-
-
+# this implementation means that the terminal argument with languages is effectively ignored. added assert test to ensure equality - depends on scenario whether that's an issue
 if ZEROSHOT == False:
-  N_SAMPLE_TEST = N_SAMPLE_DEV * len(LANGUAGES)
-  print(N_SAMPLE_TEST)
-
-  HYPER_PARAMS_LST = [study_value['optuna_study'].best_trial.user_attrs["hyperparameters_all"] for study_key, study_value in hp_study_dic.items()]
-
-  # hypothesis template: always simple without context and without NLI for this paper
-  #HYPOTHESIS_TEMPLATE_LST = [hyperparams_dic["hypothesis_template"] for hyperparams_dic in HYPER_PARAMS_LST]  #if ("context" in hyperparams_dic["hypothesis_template"])
-  #HYPOTHESIS_TEMPLATE_LST = HYPOTHESIS_TEMPLATE_LST * len(LANGUAGES)
-  HYPOTHESIS_TEMPLATE_LST = ["template_not_nli"] * len(LANGUAGES)
-  print(HYPOTHESIS_TEMPLATE_LST)
-
-  HYPER_PARAMS_LST = [{key: dic[key] for key in dic if key!="hypothesis_template"} for dic in HYPER_PARAMS_LST]  # return dic with all elements, except hypothesis template
-  HYPER_PARAMS_LST_TEST = HYPER_PARAMS_LST
-  HYPER_PARAMS_LST_TEST = HYPER_PARAMS_LST_TEST * len(LANGUAGES)
-  print(HYPER_PARAMS_LST_TEST)
-
+    if "language" in hp_study_dic.keys():  # for scenario where only one hp-search,
+        HYPER_PARAMS_LST = [hp_study_dic["optuna_study"].best_trial.user_attrs["hyperparameters_all"]]
+        # ! important that first lang in this list is not used somewhere downstream
+        LANG_LST = hp_study_dic["language"]  #["run-only-once"]  # different string to make sure that this is not actually used downstream - should not be used for these scenarios
+        assert LANG_LST == LANGUAGES, "The languages from the hp_study_dic are not the same as the languages passed as an argument"
+    else:  # for scenario where multiple/different hp-searchers per lang
+        HYPER_PARAMS_LST = [value_scenario_dic['optuna_study'].best_trial.user_attrs["hyperparameters_all"] for key_lang, value_scenario_dic in hp_study_dic.items()]
+        LANG_LST = [key_lang for key_lang, value_scenario_dic in hp_study_dic.items()]
+        assert LANG_LST == LANGUAGES, "The languages from the hp_study_dic are not the same as the languages passed as an argument"
 else:
     raise Exception("zero-shot classification not implemented")
 
 
-## intermediate text formatting function for testing code on manifesto-8 without NLI and without context
-def format_text(df=None, text_format=None, embeddings=VECTORIZER, translated_text=True):
-    # ! translated_text is for df_test (false) or not df_train (true)
-    # ! review 'translated_text' - still up to date with updated code? can be removed?
-    if (text_format == 'template_not_nli') and (translated_text == False) and (embeddings == "tfidf"):
-        df["text_prepared"] = df.text_original
-    elif (text_format == 'template_not_nli') and (translated_text == True) and (embeddings == "tfidf"):
-        df["text_prepared"] = df.text_original_trans
-    elif (text_format == 'template_not_nli') and (embeddings == "embeddings-en"):
-        df["text_prepared"] = df.text_original_trans_embed_en
-    elif (text_format == 'template_not_nli') and (embeddings == "embeddings-multi"):
-        df["text_prepared"] = df.text_original_trans_embed_multi
-    else:
-        raise Exception(f'format_text did not work for text_format == {text_format}, vectorizer == {embeddings}, translated_text == {translated_text}')
-
-    # ! special case for no-nmt-multi, don't have monolingual models - taking multilingual embeddings on single languages as proxy
-    if (text_format == 'template_not_nli') and (embeddings == "embeddings-en") and (AUGMENTATION == "no-nmt-many"):
-        df["text_prepared"] = df.text_original_trans_embed_multi
-
-    return df.copy(deep=True)
 
 
-#### tests with fairlearn
-### correlation remover
-# https://fairlearn.org/main/user_guide/mitigation.html#correlation-remover
-"""from fairlearn.preprocessing import CorrelationRemover
 
-## augment relevant meta-data
-mapping_parfam = {10: "ECO: Ecological parties", 20: "LEF: Socialist or other left parties",
-                  30: "SOC: Social democratic parties", 40: "LIB: Liberal parties", 50: "CHR: Christian democratic parties (in Isreal also Jewish parties)",
-                  60: "CON: Conservative parties", 70: "NAT: Nationalist parties", 80: "AGR: Agrarian parties",
-                  90: "ETH: Ethnic and regional parties", 95: "SIP: Special issue parties", 98: "DIV: Electoral alliances of diverse origin without dominant party",
-                  999: "MI: Missing information"
-}
-df_train["parfam_name"] = df_train.parfam.map(mapping_parfam)
-df_train["parfam_rile"] = ["left" if parfam in [10, 20, 30] else "right" if parfam in [50, 60, 70, 80, 90] else "other" for parfam in df_train["parfam"]]
-cmp_code_left = [103, 105, 106, 107, 202, 403, 404, 406, 412, 413, 504, 506, 701]
-cmp_code_right = [104, 201, 203, 305, 401, 402, 407, 414, 505, 601, 603, 605, 606]
-cmp_code_other = np.unique([cmp_code for cmp_code in df_train["cmp_code"] if cmp_code not in cmp_code_left + cmp_code_right])
-df_train["label_rile"] = ["left" if cmp_code in cmp_code_left else "right" if cmp_code in cmp_code_right else "other" for cmp_code in df_train["cmp_code"]]
-df_train["decade"] = [str(date)[:3]+"0" for date in df_train.date]
-
-df_cl["label_rile"] = ["left" if cmp_code in cmp_code_left else "right" if cmp_code in cmp_code_right else "other" for cmp_code in df_test["cmp_code"]]
-df_cl["label_rile"].value_counts()
-df_train["label_rile"] = ["left" if cmp_code in cmp_code_left else "right" if cmp_code in cmp_code_right else "other" for cmp_code in df_train["cmp_code"]]
-df_train["label_rile"].value_counts()
-df_test["label_rile"] = ["left" if cmp_code in cmp_code_left else "right" if cmp_code in cmp_code_right else "other" for cmp_code in df_test["cmp_code"]]
-df_test["label_rile"].value_counts()
-
-df_embed_lst = pd.DataFrame([ast.literal_eval(lst) for lst in df_train.text_original_trans_embed_multi.astype('object')])
-df_embed_lst["label_rile"] = pd.factorize(df_train.label_rile.tolist())[0]
-
-X = df_embed_lst
-
-cr = CorrelationRemover(sensitive_feature_ids=['label_rile'], alpha=1)
-cr.fit(X)
-X_transform = cr.transform(X)
-
-df_train["text_original_trans_embed_multi"] = X_transform.tolist()
-"""
-
-
-### run random cross-validation for hyperparameter search without a dev set
-np.random.seed(SEED_GLOBAL)
-
-### K example intervals loop
+#### K example intervals loop
+# will automatically only run once if only 1 element in HYPER_PARAMS_LST for runs with one good hp-value
 experiment_details_dic = {}
-for lang, n_max_sample, hyperparams, hypothesis_template in tqdm.tqdm(zip(LANGUAGES, N_SAMPLE_TEST, HYPER_PARAMS_LST_TEST, HYPOTHESIS_TEMPLATE_LST), desc="Iterations for different number of texts", leave=True):
+for lang, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterations for different number of texts", leave=True):
   np.random.seed(SEED_GLOBAL)
   t_start = time.time()  # log how long training of model takes
 
-  # ! put in function
-  ### select correct language for train sampling and test
-  ## Two different language scenarios
-  if "no-nmt-single" in AUGMENTATION:
-      df_train_lang = df_train.query("language_iso == @LANGUAGE_TRAIN & language_iso_trans == @LANGUAGE_TRAIN").copy(deep=True)
-      df_test_lang = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
-      if "multi" not in VECTORIZER:
-          raise Exception(f"Cannot use {VECTORIZER} if augmentation is {AUGMENTATION}")
-  elif "one2anchor" in AUGMENTATION:
-      df_train_lang = df_train.query("language_iso == @LANGUAGE_TRAIN & language_iso_trans == @LANGUAGE_ANCHOR").copy(deep=True)
-      # for test set - for non-multi, test on translated text, for multi algos test on original lang text
-      if "multi" not in VECTORIZER:
-          df_test_lang = df_test.query("language_iso == @lang & language_iso_trans == @LANGUAGE_ANCHOR").copy(deep=True)
-      elif "multi" in VECTORIZER:
-          df_test_lang = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
-  elif "one2many" in AUGMENTATION:
-      # augmenting this with other translations further down after sampling
-      df_train_lang = df_train.query("language_iso == @LANGUAGE_TRAIN & language_iso_trans == @LANGUAGE_TRAIN").copy(deep=True)
-      # for test set - for multi algos test on original lang text
-      if "multi" in VECTORIZER:
-          df_test_lang = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
-      elif "multi" not in VECTORIZER:
-          raise Exception(f"Cannot use {VECTORIZER} if augmentation is {AUGMENTATION}")
-
-  ## many2X scenarios
-  elif "no-nmt-many" in AUGMENTATION:
-      # separate analysis per lang if not multi
-      if "multi" not in VECTORIZER:
-          df_train_lang = df_train.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
-          df_test_lang = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
-      # multilingual models can analyse all original texts here
-      elif "multi" in VECTORIZER:
-          df_train_lang = df_train.query("language_iso == language_iso_trans").copy(deep=True)
-          df_test_lang = df_test.query("language_iso == language_iso_trans").copy(deep=True)
-  elif "many2anchor" in AUGMENTATION:
-      if "multi" not in VECTORIZER:
-          df_train_lang = df_train.query("language_iso_trans == @LANGUAGE_ANCHOR").copy(deep=True)
-          df_test_lang = df_test.query("language_iso_trans == @LANGUAGE_ANCHOR").copy(deep=True)
-      # multilingual models can analyse all original texts here. augmented below with anchor lang
-      elif "multi" in VECTORIZER:
-          df_train_lang = df_train.query("language_iso == language_iso_trans").copy(deep=True)
-          df_test_lang = df_test.query("language_iso == language_iso_trans").copy(deep=True)
-  elif "many2many" in AUGMENTATION:
-      # multilingual models can analyse all original texts here. can be augmented below with all other translations
-      if "multi" in VECTORIZER:
-          df_train_lang = df_train.query("language_iso == language_iso_trans").copy(deep=True)
-          df_test_lang = df_test.query("language_iso == language_iso_trans").copy(deep=True)
-      elif "multi" not in VECTORIZER:
-          raise Exception(f"Cannot use {VECTORIZER} if augmentation is {AUGMENTATION}")
-  else:
-      raise Exception("Issue with AUGMENTATION")
+  ### select correct language scenario for train sampling and testing
+  df_train_scenario, df_test_scenario = select_data_for_scenario_final_test(df_train=df_train, df_test=df_test, lang=lang, augmentation=AUGMENTATION, vectorizer=VECTORIZER, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR)
 
 
   # prepare loop
-  k_samples_experiment_dic = {"method": METHOD, "language_source": lang, "language_anchor": LANGUAGE_ANCHOR, "n_max_sample": n_max_sample, "model": MODEL_NAME, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "hyperparams": hyperparams}  # "trainer_args": train_args, "hypotheses": HYPOTHESIS_TYPE, "dataset_stats": dataset_stats_dic
+  k_samples_experiment_dic = {"method": METHOD, "language_source": lang, "language_anchor": LANGUAGE_ANCHOR, "n_sample": n_sample, "model": MODEL_NAME, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "hyperparams": hyperparams}  # "trainer_args": train_args, "hypotheses": HYPOTHESIS_TYPE, "dataset_stats": dataset_stats_dic
   f1_macro_lst = []
   f1_micro_lst = []
   accuracy_balanced_lst = []
@@ -453,92 +275,49 @@ for lang, n_max_sample, hyperparams, hypothesis_template in tqdm.tqdm(zip(LANGUA
   np.random.seed(SEED_GLOBAL)
   for random_seed_sample in tqdm.tqdm(np.random.choice(range(1000), size=CROSS_VALIDATION_REPETITIONS_FINAL), desc="iterations for std", leave=True):
 
-    ## sampling
-    if n_max_sample == 999_999:  # all data, no sampling
-      df_train_samp = df_train_lang.copy(deep=True)
+    ## take sample in accordance with scenario
+    if n_sample == 999_999:  # all data, no sampling
+      df_train_scenario_samp = df_train_scenario.copy(deep=True)
     # same sample size per language for multiple language data scenarios
-    elif any(augmentation in AUGMENTATION for augmentation in ["no-nmt-many", "many2anchor", "many2many"]):
-      df_train_samp = df_train_lang.groupby(by="language_iso").apply(lambda x: x.sample(n=min(n_max_sample, len(x)), random_state=random_seed_sample).copy(deep=True))
+    elif AUGMENTATION in ["no-nmt-many", "many2anchor", "many2many"]:
+      df_train_scenario_samp = df_train_scenario.groupby(by="language_iso").apply(lambda x: x.sample(n=min(n_sample, len(x)), random_state=random_seed_sample).copy(deep=True))
     # one sample size for single language data scenario
     else:
-      df_train_samp = df_train_lang.sample(n=min(n_max_sample, len(df_train_lang)), random_state=random_seed_sample).copy(deep=True)
+      df_train_scenario_samp = df_train_scenario.sample(n=min(n_sample, len(df_train_scenario)), random_state=random_seed_sample).copy(deep=True)
 
-    if n_max_sample == 0:  # only one inference necessary on same test set in case of zero-shot
+    print("Number of test examples after sampling: ", len(df_test_scenario))
+    print("Number of training examples after sampling: ", len(df_train_scenario_samp))
+
+    if n_sample == 0:  # only one inference necessary on same test set in case of zero-shot
       metric_step = {'accuracy_balanced': 0, 'accuracy_not_b': 0, 'f1_macro': 0, 'f1_micro': 0}
       f1_macro_lst.append(0)
       f1_micro_lst.append(0)
       accuracy_balanced_lst.append(0)
-      k_samples_experiment_dic.update({"n_train_total": len(df_train_samp), f"metrics_seed_{random_seed_sample}": metric_step})
+      k_samples_experiment_dic.update({"n_train_total": len(df_train_scenario_samp), f"metrics_seed_{random_seed_sample}": metric_step})
       break
 
 
     ### data augmentation on sample for multiling models + translation scenarios
     # general function - common with hp-search script
-    df_train_samp_augment = data_augmentation(df_train_scenario_samp=df_train_samp, df_train=df_train)
-    """## single language text scenarios
-    sample_sent_id = df_train_samp.sentence_id.unique()
-    if AUGMENTATION == "no-nmt-single":
-        df_train_samp_augment = df_train_samp.copy(deep=True)
-    elif AUGMENTATION == "one2anchor":
-        if "multi" not in VECTORIZER:
-            df_train_samp_augment = df_train_samp.copy(deep=True)
-        elif "multi" in VECTORIZER:
-            # augment by combining texts from train language with texts from train translated to target language
-            df_train_augment = df_train[(((df_train.language_iso == LANGUAGE_TRAIN) & (df_train.language_iso_trans == LANGUAGE_TRAIN)) | ((df_train.language_iso == LANGUAGE_TRAIN) & (df_train.language_iso_trans == lang)))].copy(deep=True)
-            df_train_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)
-        else:
-            raise Exception("Issue with VECTORIZER")
-    elif AUGMENTATION == "one2many":
-        if "multi" in VECTORIZER:
-            df_train_augment = df_train.query("language_iso == @LANGUAGE_TRAIN").copy(deep=True)  # can use all translations and original text (for single train lang) here
-            df_train_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
-        else:
-            raise Exception("AUGMENTATION == 'X2many' only works for multilingual vectorization")
-    ## multiple language text scenarios
-    elif AUGMENTATION == "no-nmt-many":
-        df_train_samp_augment = df_train_samp.copy(deep=True)
-    elif AUGMENTATION == "many2anchor":
-        if "multi" not in VECTORIZER:
-            df_train_samp_augment = df_train_samp.copy(deep=True)
-        elif "multi" in VECTORIZER:
-            # already have all original languages in the scenario. augmenting it with translated (to anchor) texts here. e.g. for 7*6=3500 original texts, adding 6*6=3000 texts, all translated to anchor (except anchor texts)
-            df_train_augment = df_train[(df_train.language_iso == df_train.language_iso_trans) | (df_train.language_iso_trans == LANGUAGE_ANCHOR)].copy(deep=True)
-            df_train_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
-    elif AUGMENTATION == "many2many":
-        if "multi" not in VECTORIZER:
-            df_train_samp_augment = df_train_samp.copy(deep=True)
-        elif "multi" in VECTORIZER:
-            # already have all original languages in the scenario. augmenting it with all other translated texts
-            df_train_augment = df_train.copy(deep=True)
-            df_train_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
-        #else:
-        #    raise Exception(f"AUGMENTATION == {AUGMENTATION} only works for multilingual vectorization")"""
+    df_train_scenario_samp_augment = data_augmentation(df_train_scenario_samp=df_train_scenario_samp, df_train=df_train, lang=lang, augmentation=AUGMENTATION, vectorizer=VECTORIZER, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR)
 
+    print("Number of training examples after (potential) augmentation: ", len(df_train_scenario_samp_augment))
 
-    # chose the text format depending on hyperparams
-    # returns "text_prepared" column, e.g. with concatenated sentences
-    df_train_samp_augment = format_text(df=df_train_samp_augment, text_format=hypothesis_template, embeddings=VECTORIZER, translated_text=False)
-    df_train_samp_augment = df_train_samp_augment.sample(frac=1.0, random_state=random_seed_sample)  # shuffle df_train
-    df_test_formatted = format_text(df=df_test_lang, text_format=hypothesis_template, embeddings=VECTORIZER, translated_text=True)
-
+    ### text pre-processing
     # separate hyperparams for vectorizer and classifier.
     hyperparams_vectorizer = {key: value for key, value in hyperparams.items() if key in ["ngram_range", "max_df", "min_df"]}
     hyperparams_clf = {key: value for key, value in hyperparams.items() if key not in ["ngram_range", "max_df", "min_df"]}
+    vectorizer_sklearn = TfidfVectorizer(lowercase=True, stop_words=None, norm="l2", use_idf=True, smooth_idf=True, **hyperparams_vectorizer)  # ngram_range=(1,2), max_df=0.9, min_df=0.02, token_pattern="(?u)\b\w\w+\b"
 
-    # Vectorization
-    if VECTORIZER == "tfidf":
-        # fit vectorizer on entire dataset - theoretically leads to some leakage on feature distribution in TFIDF (but is very fast, could be done for each test. And seems to be common practice) - OOV is actually relevant disadvantage of classical ML  #https://github.com/vanatteveldt/ecosent/blob/master/src/data-processing/19_svm_gridsearch.py
-        vectorizer = TfidfVectorizer(lowercase=True, stop_words='english', norm="l2", use_idf=True, smooth_idf=True, analyzer="word", **hyperparams_vectorizer)  # ngram_range=(1,2), max_df=1.0, min_df=10
-        vectorizer.fit(pd.concat([df_train_samp_augment.text_prepared, df_test_formatted.text_prepared]))
-        X_train = vectorizer.transform(df_train_samp_augment.text_prepared)
-        X_test = vectorizer.transform(df_test_formatted.text_prepared)
-    if "embeddings" in VECTORIZER:
-        X_train = np.array([ast.literal_eval(lst) for lst in df_train_samp_augment.text_prepared.astype('object')])
-        X_test = np.array([ast.literal_eval(lst) for lst in df_test_formatted.text_prepared.astype('object')])
+    # ! choose correct pre-processed text column here. possible vectorizers: "tfidf", "embeddings-en", "embeddings-multi"
+    #for group_lang, group_df_test_scenario in df_test_scenario.groupby(by="language_iso"):
+
+    X_train, X_test = choose_preprocessed_text(df_train_scenario_samp_augment=df_train_scenario_samp_augment, df_test_scenario=df_test_scenario, augmentation=AUGMENTATION, vectorizer=VECTORIZER, vectorizer_sklearn=vectorizer_sklearn, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR, method=METHOD)
 
 
-    y_train = df_train_samp_augment.label
-    y_test = df_test_formatted.label
+    y_train = df_train_scenario_samp_augment.label
+    y_test = df_test_scenario.label
+
 
     # training on train set sample
     if MODEL_NAME == "SVM":
@@ -552,16 +331,17 @@ for lang, n_max_sample, hyperparams, hypothesis_template in tqdm.tqdm(zip(LANGUA
     label_gold = y_test
     label_pred = clf.predict(X_test)
 
-    # metrics
+    ### metrics
     metric_step = compute_metrics_classical_ml(label_pred, label_gold, label_text_alphabetical=np.sort(df_cl.label_text.unique()))
 
-    k_samples_experiment_dic.update({"n_train_total": len(df_train_samp), f"metrics_seed_{random_seed_sample}": metric_step})
+    k_samples_experiment_dic.update({"n_train_total": len(df_train_scenario_samp), f"metrics_seed_{random_seed_sample}": metric_step})
     f1_macro_lst.append(metric_step["eval_f1_macro"])
     f1_micro_lst.append(metric_step["eval_f1_micro"])
     accuracy_balanced_lst.append(metric_step["eval_accuracy_balanced"])
 
-    if (n_max_sample == 0) and (n_max_sample == 999_999):  # only one inference necessary on same test set in case of zero-shot or full dataset
+    if (n_sample == 0) and (n_sample == 999_999):  # only one inference necessary on same test set in case of zero-shot or full dataset
       break
+
 
   # timer
   t_end = time.time()
@@ -579,20 +359,17 @@ for lang, n_max_sample, hyperparams, hypothesis_template in tqdm.tqdm(zip(LANGUA
   metrics_mean = {"f1_macro_mean": f1_macro_mean, "f1_micro_mean": f1_micro_mean, "accuracy_balanced_mean": accuracy_balanced_mean, "f1_macro_std": f1_macro_std, "f1_micro_std": f1_micro_std, "accuracy_balanced_std": accuracy_balanced_std}
   k_samples_experiment_dic.update({"metrics_mean": metrics_mean, "dataset": DATASET_NAME, "n_classes": len(df_cl.label_text.unique()), "train_eval_time_per_model": t_total})
 
-  # harmonise n_sample file title
-  while len(str(n_max_sample)) <= 4:
-    n_max_sample = "0" + str(n_max_sample)
 
   # update of overall experiment dic
-  experiment_details_dic_step = {f"experiment_sample_{n_max_sample}_{METHOD}_{MODEL_NAME}_{lang}": k_samples_experiment_dic}
+  experiment_details_dic_step = {f"experiment_sample_{n_sample_string}_{METHOD}_{MODEL_NAME}_{lang}": k_samples_experiment_dic}
   experiment_details_dic.update(experiment_details_dic_step)
 
 
   ## stop loop for multiple language case - no separate iterations per language necessary
-  if "many2anchor" in AUGMENTATION:
-    break
-  if ("multi" in VECTORIZER) and (any(augmentation in AUGMENTATION for augmentation in ["no-nmt-many", "many2many"])):  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
-    break
+  #if "many2anchor" in AUGMENTATION:
+  #  break
+  #if ("multi" in VECTORIZER) and (any(augmentation in AUGMENTATION for augmentation in ["no-nmt-many", "many2many"])):  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
+  #  break
 
 
 
@@ -623,7 +400,7 @@ f1_micro_lst_mean_std = np.mean(f1_micro_lst_mean_std)
 accuracy_balanced_lst_mean_std = np.mean(accuracy_balanced_lst_mean_std)
 
 experiment_summary_dic["experiment_summary"].update({"f1_macro_mean": f1_macro_lst_mean, "f1_micro_mean": f1_micro_lst_mean, "accuracy_balanced_mean": accuracy_balanced_lst_mean,
-                               "f1_macro_mean_std": f1_macro_lst_mean_std, "f1_micro_mean_std": f1_micro_lst_mean_std, "accuracy_balanced_mean_std": accuracy_balanced_lst_mean_std})
+                                                     "f1_macro_mean_std": f1_macro_lst_mean_std, "f1_micro_mean_std": f1_micro_lst_mean_std, "accuracy_balanced_mean_std": accuracy_balanced_lst_mean_std})
 
 print(experiment_summary_dic)
 
@@ -634,9 +411,9 @@ experiment_details_dic = {**experiment_details_dic, **experiment_summary_dic}
 
 
 if EXECUTION_TERMINAL == True:
-  joblib.dump(experiment_details_dic, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{VECTORIZER}_{n_max_sample}samp_{AUGMENTATION}_{HYPERPARAM_STUDY_DATE}.pkl")
+  joblib.dump(experiment_details_dic, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}.pkl")
 elif EXECUTION_TERMINAL == False:
-  joblib.dump(experiment_details_dic, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{VECTORIZER}_{n_max_sample}samp_{AUGMENTATION}_{HYPERPARAM_STUDY_DATE}_t.pkl")
+  joblib.dump(experiment_details_dic, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}_t.pkl")
 
 
 print("Run done.")
@@ -759,144 +536,5 @@ print("Run done.")
 """
 
 
-### deletable extract of prediction for accuracy-meta paper
-#df_test_predictions = df_test_lang.copy(deep=True)
-#df_test_predictions["prediction"] = label_pred
-#df_test_predictions.to_csv("df_test_many2anchor_svm_500_embed_predictions.csv", index=False)
 
-
-##### tests with fairlearn
-"""
-import sklearn.metrics as skm
-
-df_test_predictions = df_test_lang.copy(deep=True)
-df_test_predictions["prediction"] = label_pred
-
-y_true = df_test_predictions.label
-y_pred = df_test_predictions.prediction
-
-## create new meta-data variables
-# https://manifesto-project.wzb.eu/down/data/2020a/codebooks/codebook_MPDataset_MPDS2020a.pdf
-mapping_parfam = {10: "ECO: Ecological parties", 20: "LEF: Socialist or other left parties",
-                  30: "SOC: Social democratic parties", 40: "LIB: Liberal parties", 50: "CHR: Christian democratic parties (in Isreal also Jewish parties)",
-                  60: "CON: Conservative parties", 70: "NAT: Nationalist parties", 80: "AGR: Agrarian parties",
-                  90: "ETH: Ethnic and regional parties", 95: "SIP: Special issue parties", 98: "DIV: Electoral alliances of diverse origin without dominant party",
-                  999: "MI: Missing information"
-}
-df_test_predictions["parfam_name"] = df_test_predictions.parfam.map(mapping_parfam)
-df_test_predictions["parfam_rile"] = ["left" if parfam in [10, 20, 30] else "right" if parfam in [50, 60, 70, 80, 90] else "other" for parfam in df_test_predictions["parfam"]]
-cmp_code_left = [103, 105, 106, 107, 202, 403, 404, 406, 412, 413, 504, 506, 701]
-cmp_code_right = [104, 201, 203, 305, 401, 402, 407, 414, 505, 601, 603, 605, 606]
-cmp_code_other = np.unique([cmp_code for cmp_code in df_test_predictions["cmp_code"] if cmp_code not in cmp_code_left + cmp_code_right])
-df_test_predictions["label_rile"] = ["left" if cmp_code in cmp_code_left else "right" if cmp_code in cmp_code_right else "other" for cmp_code in df_test_predictions["cmp_code"]]
-df_test_predictions["decade"] = [str(date)[:3]+"0" for date in df_test_predictions.date]
-
-df_test_predictions["country_iso"].value_counts()
-
-##
-from fairlearn.metrics import MetricFrame
-from fairlearn.metrics import count
-
-import functools
-f1_macro = functools.partial(skm.f1_score, average='macro')
-precision_micro = functools.partial(skm.precision_score, average='micro')
-recall_micro = functools.partial(skm.recall_score, average='micro')
-precision_macro = functools.partial(skm.precision_score, average='macro')
-recall_macro = functools.partial(skm.recall_score, average='macro')
-
-grouped_metric = MetricFrame(metrics={'accuracy': skm.accuracy_score,
-                                      #'accuracy_balanced': skm.balanced_accuracy_score,
-                                      #"precision_micro": precision_micro,
-                                      #"recall_micro": recall_micro,
-                                      "f1_macro": f1_macro,
-                                      #"precision_macro": precision_macro,
-                                      #"recall_macro": recall_macro,
-                                      'count': count
-                                      },
-                             y_true=y_true,
-                             y_pred=y_pred,
-                             # can look at intersection between features by passing df_test_predictions with multiple columns
-                             sensitive_features=df_test_predictions[["label_rile"]],  # df_test_predictions[["language_iso", "parfam_name", "parfam_rile", "label_rile", "decade"]]
-                             #control_features=df_test_predictions[["parfam_name"]]
-)
-
-print("## Metrics overall:\n", grouped_metric.overall, "\n")
-print("## Metrics by group:\n", grouped_metric.by_group, "\n")  #.to_dict()
-#print("## Metrics min:\n", grouped_metric.group_min(), "\n")
-#print("## Metrics max:\n", grouped_metric.group_max(), "\n")
-print("## Metrics difference min-max:\n", grouped_metric.difference(method='between_groups'), "\n")  # to_overall, between_groups  # difference or ratio of the metric values between the best and the worst slice
-#print(grouped_metric.ratio(method='between_groups')) # to_overall, between_group  # difference or ratio of the metric values between the best and the worst slice
-"""
-
-
-"""
-#### test with fairlearn transformation to remove correlation with rile
-
-### many2anchor, embeddings-multi
-## without preprocessing transformation or postprocessing
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'classical_ml', 'model_name': 'SVM', 'vectorizer': 'embeddings-multi', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'many2anchor', 
-'f1_macro_mean': 0.3792114424709246, 'f1_micro_mean': 0.46709006928406466, 'accuracy_balanced_mean': 0.3769977849366013, 'f1_macro_mean_std': 0.009789851688477513, 'f1_micro_mean_std': 0.008660508083140894, 'accuracy_balanced_mean_std': 0.01110978162005441}}
-## Metrics overall:
- accuracy    0.475751
-f1_macro    0.389001
-count           1732
-dtype: object 
-## Metrics by group:
-             accuracy  f1_macro count
-label_rile                          
-left        0.608796  0.370428   432
-other        0.42158  0.367644   899
-right       0.453865  0.276199   401 
-## Metrics difference min-max:
- accuracy    0.187217
-f1_macro    0.094228
-count            498
-dtype: object 
-
-
-## with transformation alpha=1
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'classical_ml', 'model_name': 'SVM', 'vectorizer': 'embeddings-multi', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'many2anchor',
-'f1_macro_mean': 0.37990347718731216, 'f1_micro_mean': 0.46766743648960746, 'accuracy_balanced_mean': 0.3769393235252684, 'f1_macro_mean_std': 0.0040161485348022, 'f1_micro_mean_std': 0.0034642032332563577, 'accuracy_balanced_mean_std': 0.002439633348997078}}
-## Metrics overall:
- accuracy    0.464203
-f1_macro     0.38392
-count           1732
-dtype: object 
-## Metrics by group:
-             accuracy  f1_macro count
-label_rile                          
-left        0.543981  0.305981   432
-other       0.420467  0.362778   899
-right       0.476309  0.312158   401 
-## Metrics difference min-max:
- accuracy    0.123514
-f1_macro    0.056797
-count            498
-dtype: object 
-
-
-## with transformation alpha=0.5
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'classical_ml', 'model_name': 'SVM', 'vectorizer': 'embeddings-multi', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'many2anchor', 
-'f1_macro_mean': 0.353936169487248, 'f1_micro_mean': 0.43187066974595845, 'accuracy_balanced_mean': 0.35311475802284503, 'f1_macro_mean_std': 0.0007956664772877375, 'f1_micro_mean_std': 0.002309468822170896, 'accuracy_balanced_mean_std': 0.00041150944584439353}}
-Run done.
-## Metrics overall:
- accuracy     0.43418
-f1_macro    0.353141
-count           1732
-dtype: object 
-## Metrics by group:
-             accuracy  f1_macro count
-label_rile                          
-left        0.527778  0.317143   432
-other       0.382647  0.328759   899
-right       0.448878  0.284718   401 
-## Metrics difference min-max:
- accuracy     0.14513
-f1_macro    0.044041
-count            498
-dtype: object 
-
-
-
-"""
 

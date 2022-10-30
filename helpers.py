@@ -7,8 +7,247 @@ import torch
 import datasets
 import copy
 import numpy as np
+import ast
 
 np.random.seed(42)
+
+
+#### functions for scenario data selection and augmentation
+### select correct language for training sampling and validation
+def select_data_for_scenario_hp_search(df_train=None, df_dev=None, lang=None, augmentation=None, vectorizer=None, language_train=None, language_anchor=None):
+    ## augmentations for certain scenarios in code outside of this function. needs to be afterwards because need to first sample, then augment
+
+    ## Two different language scenarios
+    if "no-nmt-single" in augmentation:
+        df_train_scenario = df_train.query("language_iso == @language_train & language_iso_trans == @language_train").copy(deep=True)
+        df_dev_scenario = df_dev.query("language_iso == @language_train & language_iso_trans == @language_train").copy(deep=True)
+        if "multi" not in vectorizer:
+            raise Exception(f"Cannot use {vectorizer} if augmentation is {augmentation}")
+    elif "one2anchor" in augmentation:
+        # for test set - for non-multi, test on translated text, for multi algos test on original lang text
+        if "multi" not in vectorizer:
+            df_train_scenario = df_train.query("language_iso == @language_train & language_iso_trans == @language_anchor").copy(deep=True)
+            df_dev_scenario = df_dev.query("language_iso == @language_train & language_iso_trans == @language_anchor").copy(deep=True)
+        elif "multi" in vectorizer:
+            # could add augmentation for this scenario downstream (with anchor)
+            df_train_scenario = df_train.query("language_iso == @language_train & language_iso_trans == @language_train").copy(deep=True)
+            df_dev_scenario = df_dev.query("language_iso == @language_train & language_iso_trans == @language_train").copy(deep=True)
+    elif "one2many" in augmentation:
+        # augmenting this with other translations further down after sampling
+        df_train_scenario = df_train.query("language_iso == @language_train & language_iso_trans == @language_train").copy(deep=True)
+        # for test set - for multi algos test on original lang text
+        if "multi" in vectorizer:
+            df_dev_scenario = df_dev.query("language_iso == @language_train & language_iso_trans == @language_train").copy(deep=True)
+        elif "multi" not in vectorizer:
+            raise Exception(f"Cannot use {vectorizer} if augmentation is {augmentation}")
+
+    ## many2X scenarios
+    elif "no-nmt-many" in augmentation:
+        # separate analysis per lang if not multi
+        if "multi" not in vectorizer:
+            df_train_scenario = df_train.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
+            df_dev_scenario = df_dev.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
+        # multilingual models can analyse all original texts here
+        elif "multi" in vectorizer:
+            df_train_scenario = df_train.query("language_iso == language_iso_trans").copy(deep=True)
+            df_dev_scenario = df_dev.query("language_iso == language_iso_trans").copy(deep=True)
+    elif "many2anchor" in augmentation:
+        if "multi" not in vectorizer:
+            df_train_scenario = df_train.query("language_iso_trans == @language_anchor").copy(deep=True)
+            df_dev_scenario = df_dev.query("language_iso_trans == @language_anchor").copy(deep=True)
+        # multilingual models can analyse all original texts here. can augment below with anchor lang
+        elif "multi" in vectorizer:
+            df_train_scenario = df_train.query("language_iso == language_iso_trans").copy(deep=True)
+            df_dev_scenario = df_dev.query("language_iso == language_iso_trans").copy(deep=True)
+    elif "many2many" in augmentation:
+        if "multi" not in vectorizer:
+            df_train_scenario = df_train.query("language_iso_trans == @lang").copy(deep=True)
+            df_dev_scenario = df_dev.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
+            #raise Exception(f"Cannot use {vectorizer} if augmentation is {augmentation}")
+        # multilingual models can analyse all original texts here. can be augmented below with all other translations
+        elif "multi" in vectorizer:
+            df_train_scenario = df_train.query("language_iso == language_iso_trans").copy(deep=True)
+            df_dev_scenario = df_dev.query("language_iso == language_iso_trans").copy(deep=True)
+    else:
+        raise Exception("Issue with augmentation")
+
+    return df_train_scenario, df_dev_scenario
+
+
+### select correct language for train sampling and final test
+def select_data_for_scenario_final_test(df_train=None, df_test=None, lang=None, augmentation=None, vectorizer=None, language_train=None, language_anchor=None):
+    ## Two different language scenarios
+    if "no-nmt-single" in augmentation:
+        df_train_scenario = df_train.query("language_iso == @language_train & language_iso_trans == @language_train").copy(deep=True)
+        df_test_scenario = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
+        if "multi" not in vectorizer:
+            raise Exception(f"Cannot use {vectorizer} if augmentation is {augmentation}")
+    elif "one2anchor" in augmentation:
+        df_train_scenario = df_train.query("language_iso == @language_train & language_iso_trans == @language_anchor").copy(deep=True)
+        # for test set - for non-multi, test on translated text, for multi algos test on original lang text
+        if "multi" not in vectorizer:
+            df_test_scenario = df_test.query("language_iso == @lang & language_iso_trans == @language_anchor").copy(deep=True)
+        elif "multi" in vectorizer:
+            df_test_scenario = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
+    elif "one2many" in augmentation:
+        # augmenting this with other translations further down after sampling
+        df_train_scenario = df_train.query("language_iso == @language_train & language_iso_trans == @language_train").copy(deep=True)
+        # for test set - for multi algos test on original lang text
+        if "multi" in vectorizer:
+            df_test_scenario = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
+        elif "multi" not in vectorizer:
+            raise Exception(f"Cannot use {vectorizer} if augmentation is {augmentation}")
+
+    ## many2X scenarios
+    elif "no-nmt-many" in augmentation:
+        # separate analysis per lang if not multi
+        if "multi" not in vectorizer:
+            df_train_scenario = df_train.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
+            df_test_scenario = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
+        # multilingual models can analyse all original texts here
+        elif "multi" in vectorizer:
+            df_train_scenario = df_train.query("language_iso == language_iso_trans").copy(deep=True)
+            df_test_scenario = df_test.query("language_iso == language_iso_trans").copy(deep=True)
+    elif "many2anchor" in augmentation:
+        if "multi" not in vectorizer:
+            df_train_scenario = df_train.query("language_iso_trans == @language_anchor").copy(deep=True)
+            df_test_scenario = df_test.query("language_iso_trans == @language_anchor").copy(deep=True)
+        # multilingual models can analyse all original texts here. augmented below with anchor lang
+        elif "multi" in vectorizer:
+            df_train_scenario = df_train.query("language_iso == language_iso_trans").copy(deep=True)
+            df_test_scenario = df_test.query("language_iso == language_iso_trans").copy(deep=True)
+    elif "many2many" in augmentation:
+        # multilingual models can analyse all original texts here. can be augmented below with all other translations
+        if "multi" not in vectorizer:
+            df_train_scenario = df_train.query("language_iso_trans == @lang").copy(deep=True)
+            df_test_scenario = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
+        elif "multi" in vectorizer:
+            df_train_scenario = df_train.query("language_iso == language_iso_trans").copy(deep=True)
+            df_test_scenario = df_test.query("language_iso == language_iso_trans").copy(deep=True)
+        #elif "multi" not in vectorizer:
+        #    # ! can add not multi scenarios here too
+        #    raise Exception(f"Cannot use {vectorizer} if augmentation is {augmentation}")
+    else:
+        raise Exception("Issue with augmentation")
+
+    return df_train_scenario, df_test_scenario
+
+
+### data augmentation for multiling models + translation scenarios
+def data_augmentation(df_train_scenario_samp=None, df_train=None, lang=None, augmentation=None, vectorizer=None, language_train=None, language_anchor=None):
+    ## single language text scenarios
+    sample_sent_id = df_train_scenario_samp.sentence_id.unique()
+    if augmentation == "no-nmt-single":
+        df_train_scenario_samp_augment = df_train_scenario_samp.copy(deep=True)
+    elif augmentation == "one2anchor":
+        if "multi" not in vectorizer:
+            df_train_scenario_samp_augment = df_train_scenario_samp.copy(deep=True)
+        elif "multi" in vectorizer:
+            # augment by combining texts from train language with texts from train translated to target language
+            df_train_augment = df_train[(((df_train.language_iso == language_train) & (df_train.language_iso_trans == language_train)) | ((df_train.language_iso == language_train) & (df_train.language_iso_trans == lang)))].copy(deep=True)
+            df_train_scenario_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)
+        else:
+            raise Exception("Issue with vectorizer")
+    elif augmentation == "one2many":
+        if "multi" in vectorizer:
+            df_train_augment = df_train.query("language_iso == @language_train").copy(deep=True)  # can use all translations and original text (for single train lang) here
+            df_train_scenario_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
+        else:
+            raise Exception("augmentation == 'X2many' only works for multilingual vectorization")
+    ## multiple language text scenarios
+    elif augmentation == "no-nmt-many":
+        df_train_scenario_samp_augment = df_train_scenario_samp.copy(deep=True)
+    elif augmentation == "many2anchor":
+        if "multi" not in vectorizer:
+            df_train_scenario_samp_augment = df_train_scenario_samp.copy(deep=True)
+        elif "multi" in vectorizer:
+            # already have all original languages in the scenario. augmenting it with translated (to anchor) texts here. e.g. for 7*6=3500 original texts, adding 6*6=3000 texts, all translated to anchor (except anchor texts)
+            df_train_augment = df_train[(df_train.language_iso == df_train.language_iso_trans) | (df_train.language_iso_trans == language_anchor)].copy(deep=True)
+            df_train_scenario_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
+    elif augmentation == "many2many":
+        if "multi" not in vectorizer:
+            df_train_scenario_samp_augment = df_train_scenario_samp.copy(deep=True)
+        elif "multi" in vectorizer:
+            # already have all original languages in the scenario. augmenting it with all other translated texts
+            df_train_augment = df_train.copy(deep=True)
+            df_train_scenario_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
+        #else:
+        #    raise Exception(f"augmentation == {augmentation} only works for multilingual vectorization")
+    return df_train_scenario_samp_augment
+
+
+
+def sample_for_scenario(df_train_scenario=None, df_test_scenario=None, n_sample=None, test_size=None, augmentation=None, vectorizer=None, seed=None, lang=None):
+    if n_sample == 999_999:
+        df_train_scenario_samp = df_train_scenario.copy(deep=True)
+        df_test_scenario_samp = df_test_scenario.copy(deep=True)
+    elif augmentation in ["no-nmt-single", "one2anchor", "one2many"]:
+        df_train_scenario_samp_ids = df_train_scenario.sentence_id.sample(n=min(int(n_sample * (1-test_size)), len(df_train_scenario)), random_state=seed).copy(deep=True)
+        df_test_scenario_samp_ids = df_test_scenario.sentence_id.sample(n=min(int(n_sample * test_size), len(df_test_scenario)), random_state=seed).copy(deep=True)
+        df_train_scenario_samp = df_train_scenario[df_train_scenario.sentence_id.isin(df_train_scenario_samp_ids)]
+        df_test_scenario_samp = df_test_scenario[df_test_scenario.sentence_id.isin(df_test_scenario_samp_ids)]
+    elif augmentation in ["no-nmt-many", "many2anchor", "many2many"]:
+        df_train_scenario_samp_ids = df_train_scenario.groupby(by="language_iso", group_keys=True, as_index=True).apply(lambda x: x.sentence_id.sample(n=min(int(n_sample * (1-test_size)), len(x)), random_state=seed))
+        df_test_scenario_samp_ids = df_test_scenario.groupby(by="language_iso", group_keys=True, as_index=True).apply(lambda x: x.sentence_id.sample(n=min(int(n_sample * test_size), len(x)), random_state=seed))
+        if augmentation in ["no-nmt-many"] and vectorizer in ["tfidf", "embeddings-en"]:
+            # unelegant - need to extract row with ids from df - when only run on one language, groupby returns df with separate rows for each lang  (only one lang), but need just one series with all ids
+            df_train_scenario_samp_ids = df_train_scenario_samp_ids.loc[lang]
+            df_test_scenario_samp_ids = df_test_scenario_samp_ids.loc[lang]
+        elif augmentation in ["many2many"] and vectorizer in ["tfidf", "embeddings-en"]:
+            # unelegant - need to extract row with ids from df - when only run on one language, groupby returns df with separate rows for each lang  (only one lang), but need just one series with all ids
+            df_test_scenario_samp_ids = df_test_scenario_samp_ids.loc[lang]
+        df_train_scenario_samp = df_train_scenario[df_train_scenario.sentence_id.isin(df_train_scenario_samp_ids)]
+        df_test_scenario_samp = df_test_scenario[df_test_scenario.sentence_id.isin(df_test_scenario_samp_ids)]
+    else:
+        raise Exception(f"No implementation/issue scenario")
+    return df_train_scenario_samp, df_test_scenario_samp
+
+
+def choose_preprocessed_text(df_train_scenario_samp_augment=None, df_test_scenario=None, augmentation=None, vectorizer=None, vectorizer_sklearn=None, language_train=None, language_anchor=None, method=None):
+    if method == "classical_ml":
+        if vectorizer == "tfidf":
+            # fit vectorizer on entire dataset - theoretically leads to some leakage on feature distribution in TFIDF (but is very fast, could be done for each test. And seems to be common practice) - OOV is actually relevant disadvantage of classical ML  #https://github.com/vanatteveldt/ecosent/blob/master/src/data-processing/19_svm_gridsearch.py
+            vectorizer_sklearn.fit(pd.concat([df_train_scenario_samp_augment.text_original_trans_tfidf, df_test_scenario.text_original_trans_tfidf]))
+            X_train = vectorizer_sklearn.transform(df_train_scenario_samp_augment.text_original_trans_tfidf)
+            X_test = vectorizer_sklearn.transform(df_test_scenario.text_original_trans_tfidf)
+        if "embeddings" in vectorizer:
+            # possible augmentations: "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
+            if (augmentation in ["one2anchor", "many2anchor"]) and (vectorizer == "embeddings-en") and (language_anchor == "en"):
+                # X_train = np.array([list(lst) for lst in df_train_scenario_samp_augment.text_original_trans_embed_en])
+                # X_test = np.array([list(lst) for lst in df_test_scenario.text_original_trans_embed_en])
+                X_train = np.array([ast.literal_eval(lst) for lst in df_train_scenario_samp_augment.text_original_trans_embed_en.astype('object')])
+                X_test = np.array([ast.literal_eval(lst) for lst in df_test_scenario.text_original_trans_embed_en.astype('object')])
+            elif (augmentation in ["no-nmt-many", "many2many"] and (vectorizer == "embeddings-en")):
+                # need to use multiling embeddings for this scenario, because no good encoder for each language
+                # X_train = np.array([list(lst) for lst in df_train_scenario_samp_augment.text_original_trans_embed_multi])
+                # X_test = np.array([list(lst) for lst in df_test_scenario.text_original_trans_embed_multi])
+                X_train = np.array([ast.literal_eval(lst) for lst in df_train_scenario_samp_augment.text_original_trans_embed_multi.astype('object')])
+                X_test = np.array([ast.literal_eval(lst) for lst in df_test_scenario.text_original_trans_embed_multi.astype('object')])
+            elif (augmentation in ["no-nmt-single", "no-nmt-many", "one2anchor", "one2many", "many2anchor", "many2many"]) and (vectorizer == "embeddings-multi"):
+                # maybe implement taking embeddings-en here if train-lang is en as benchmark  (complicated to implement given all the augmentations above - mixes different languages)
+                # X_train = np.array([list(lst) for lst in df_train_scenario_samp_augment.text_original_trans_embed_multi])
+                # X_test = np.array([list(lst) for lst in df_test_scenario.text_original_trans_embed_multi])
+                X_train = np.array([ast.literal_eval(lst) for lst in df_train_scenario_samp_augment.text_original_trans_embed_multi.astype('object')])
+                X_test = np.array([ast.literal_eval(lst) for lst in df_test_scenario.text_original_trans_embed_multi.astype('object')])
+            else:
+                raise Exception(f"No implementation/issue for vectorizer {vectorizer} and/or augmentation {augmentation}")
+        return X_train, X_test
+
+    elif method == "standard_dl":
+        # ? can I just always choose the translated text column? it will contain the original text if iso-original == iso-trans. This will be determined by preceeding functions
+        # to double check
+        # standard BERT (en)
+        if vectorizer == "embeddings-en":
+            #if augmentation in ["one2anchor", "no-nmt-multi", "many2anchor", "many2many"]:
+            df_train_scenario_samp_augment["text_prepared"] = df_train_scenario_samp_augment.text_original_trans
+            df_test_scenario["text_prepared"] = df_test_scenario.text_original_trans
+        # multilingual BERT
+        elif vectorizer == "embeddings-multi":
+            df_train_scenario_samp_augment["text_prepared"] = df_train_scenario_samp_augment.text_original_trans
+            df_test_scenario["text_prepared"] = df_test_scenario.text_original_trans
+        return df_train_scenario_samp_augment, df_test_scenario
+
+
 
 
 ### reformat training data for NLI binary classification
