@@ -107,15 +107,18 @@ def select_data_for_scenario_final_test(df_train=None, df_test=None, lang=None, 
         # multilingual models can analyse all original texts here
         elif "multi" in vectorizer:
             df_train_scenario = df_train.query("language_iso == language_iso_trans").copy(deep=True)
-            df_test_scenario = df_test.query("language_iso == language_iso_trans").copy(deep=True)
+            #df_test_scenario = df_test.query("language_iso == language_iso_trans").copy(deep=True)
+            df_test_scenario = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
     elif "many2anchor" in augmentation:
         if "multi" not in vectorizer:
             df_train_scenario = df_train.query("language_iso_trans == @language_anchor").copy(deep=True)
-            df_test_scenario = df_test.query("language_iso_trans == @language_anchor").copy(deep=True)
+            #df_test_scenario = df_test.query("language_iso_trans == @language_anchor").copy(deep=True)
+            df_test_scenario = df_test.query("language_iso == @lang & language_iso_trans == @language_anchor").copy(deep=True)
         # multilingual models can analyse all original texts here. augmented below with anchor lang
         elif "multi" in vectorizer:
             df_train_scenario = df_train.query("language_iso == language_iso_trans").copy(deep=True)
-            df_test_scenario = df_test.query("language_iso == language_iso_trans").copy(deep=True)
+            #df_test_scenario = df_test.query("language_iso == language_iso_trans").copy(deep=True)
+            df_test_scenario = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
     elif "many2many" in augmentation:
         # multilingual models can analyse all original texts here. can be augmented below with all other translations
         if "multi" not in vectorizer:
@@ -123,7 +126,8 @@ def select_data_for_scenario_final_test(df_train=None, df_test=None, lang=None, 
             df_test_scenario = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
         elif "multi" in vectorizer:
             df_train_scenario = df_train.query("language_iso == language_iso_trans").copy(deep=True)
-            df_test_scenario = df_test.query("language_iso == language_iso_trans").copy(deep=True)
+            #df_test_scenario = df_test.query("language_iso == language_iso_trans").copy(deep=True)
+            df_test_scenario = df_test.query("language_iso == @lang & language_iso_trans == @lang").copy(deep=True)
         #elif "multi" not in vectorizer:
         #    # ! can add not multi scenarios here too
         #    raise Exception(f"Cannot use {vectorizer} if augmentation is {augmentation}")
@@ -135,6 +139,9 @@ def select_data_for_scenario_final_test(df_train=None, df_test=None, lang=None, 
 
 ### data augmentation for multiling models + translation scenarios
 def data_augmentation(df_train_scenario_samp=None, df_train=None, lang=None, augmentation=None, vectorizer=None, language_train=None, language_anchor=None):
+    #global sample_sent_id
+    #global df_train_augment
+
     ## single language text scenarios
     sample_sent_id = df_train_scenario_samp.sentence_id.unique()
     if augmentation == "no-nmt-single":

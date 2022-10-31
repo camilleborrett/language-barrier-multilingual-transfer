@@ -107,7 +107,7 @@ elif EXECUTION_TERMINAL == False:
                             "--dataset", "manifesto-8",
                             "--languages", "en", "de", "es", "fr", "tr", "ru", "ko",
                             "--language_anchor", "en", "--language_train", "en",  # in multiling scenario --language_train needs to be list of lang (?)
-                            "--augmentation_nmt", "no-nmt-single",  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
+                            "--augmentation_nmt", "many2many",  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
                             "--sample_interval", "300",  #"100", "500", "1000", #"2500", "5000", #"10000",
                             "--method", "classical_ml", "--model", "logistic",  # SVM, logistic
                             "--vectorizer", "embeddings-multi",  # "tfidf", "embeddings-en", "embeddings-multi"
@@ -226,6 +226,7 @@ from helpers import select_data_for_scenario_hp_search, select_data_for_scenario
 # select best hp based on hp-search
 n_sample = N_SAMPLE_DEV[0]
 n_sample_string = N_SAMPLE_DEV[0]
+#n_sample_string = 300
 while len(str(n_sample_string)) <= 4:
     n_sample_string = "0" + str(n_sample_string)
 
@@ -237,10 +238,12 @@ elif EXECUTION_TERMINAL == False:
     hp_study_dic = joblib.load(f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}.pkl")
     hp_study_dic = next(iter(hp_study_dic.values()))  # unnest dic
 
+
 # this implementation means that the terminal argument with languages is effectively ignored. added assert test to ensure equality - depends on scenario whether that's an issue
 if ZEROSHOT == False:
     if "language" in hp_study_dic.keys():  # for scenario where only one hp-search,
         HYPER_PARAMS_LST = [hp_study_dic["optuna_study"].best_trial.user_attrs["hyperparameters_all"]]
+        HYPER_PARAMS_LST = HYPER_PARAMS_LST * len(hp_study_dic["language"])
         # ! important that first lang in this list is not used somewhere downstream
         LANG_LST = hp_study_dic["language"]  #["run-only-once"]  # different string to make sure that this is not actually used downstream - should not be used for these scenarios
         assert LANG_LST == LANGUAGES, "The languages from the hp_study_dic are not the same as the languages passed as an argument"
@@ -256,9 +259,27 @@ else:
 
 
 #### K example intervals loop
+"""experiment_details_dic = {}
+np.random.seed(SEED_GLOBAL)
+for random_seed_sample in tqdm.tqdm(np.random.choice(range(1000), size=CROSS_VALIDATION_REPETITIONS_FINAL), desc="seed iterations for std", leave=True):
+    np.random.seed(SEED_GLOBAL)
+
+    for lang_train_and_test, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterations for different training runs. Someones only 1 model with one hp-set, sometimes 7", leave=True):
+    # 1 scenario: train 1 algo, test on 7 languages;
+    # 2 scenario: train 7 algos, test each on respective lang
+    t_start = time.time()  # log how long training of model takes
+
+    ### select correct language scenario for train sampling and testing
+    df_train_scenario, df_test_scenario = select_data_for_scenario_final_test(df_train=df_train, df_test=df_test, lang=lang, augmentation=AUGMENTATION, vectorizer=VECTORIZER, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR)
+"""
+
 # will automatically only run once if only 1 element in HYPER_PARAMS_LST for runs with one good hp-value
+# ! to update !: make this loop alwas run 7 times - once for each language to evaluate on (and to train on depending on case)
+# ! but then the training set must not change for scenarios where only 1 training !
 experiment_details_dic = {}
-for lang, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterations for different number of texts", leave=True):
+n_language = 0
+for lang, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterations for different languages and hps", leave=True):
+  n_language += 1
   np.random.seed(SEED_GLOBAL)
   t_start = time.time()  # log how long training of model takes
 
@@ -267,13 +288,16 @@ for lang, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterat
 
 
   # prepare loop
-  k_samples_experiment_dic = {"method": METHOD, "language_source": lang, "language_anchor": LANGUAGE_ANCHOR, "n_sample": n_sample, "model": MODEL_NAME, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "hyperparams": hyperparams}  # "trainer_args": train_args, "hypotheses": HYPOTHESIS_TYPE, "dataset_stats": dataset_stats_dic
+  experiment_details_dic_lang = {"method": METHOD, "language_source": lang, "language_anchor": LANGUAGE_ANCHOR, "n_sample": n_sample, "model": MODEL_NAME, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "hyperparams": hyperparams}  # "trainer_args": train_args, "hypotheses": HYPOTHESIS_TYPE, "dataset_stats": dataset_stats_dic
   f1_macro_lst = []
   f1_micro_lst = []
   accuracy_balanced_lst = []
   # randomness stability loop. Objective: calculate F1 across N samples to test for influence of different (random) samples
   np.random.seed(SEED_GLOBAL)
+  if n_language == 1:
+      model_dic = {}  # storing trained classifiers to avoid re-training when not necessary
   for random_seed_sample in tqdm.tqdm(np.random.choice(range(1000), size=CROSS_VALIDATION_REPETITIONS_FINAL), desc="iterations for std", leave=True):
+    print("Random seed: ", random_seed_sample)
 
     ## take sample in accordance with scenario
     if n_sample == 999_999:  # all data, no sampling
@@ -293,7 +317,7 @@ for lang, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterat
       f1_macro_lst.append(0)
       f1_micro_lst.append(0)
       accuracy_balanced_lst.append(0)
-      k_samples_experiment_dic.update({"n_train_total": len(df_train_scenario_samp), f"metrics_seed_{random_seed_sample}": metric_step})
+      experiment_details_dic_lang.update({"n_train_total": len(df_train_scenario_samp), f"metrics_seed_{random_seed_sample}_lang_{lang}": metric_step})
       break
 
 
@@ -305,13 +329,23 @@ for lang, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterat
 
     ### text pre-processing
     # separate hyperparams for vectorizer and classifier.
-    hyperparams_vectorizer = {key: value for key, value in hyperparams.items() if key in ["ngram_range", "max_df", "min_df"]}
-    hyperparams_clf = {key: value for key, value in hyperparams.items() if key not in ["ngram_range", "max_df", "min_df"]}
+    hyperparams_vectorizer = {key: value for key, value in hyperparams.items() if key in ["ngram_range", "max_df", "min_df", "analyzer"]}
+    hyperparams_clf = {key: value for key, value in hyperparams.items() if key not in ["ngram_range", "max_df", "min_df", "analyzer"]}
     vectorizer_sklearn = TfidfVectorizer(lowercase=True, stop_words=None, norm="l2", use_idf=True, smooth_idf=True, **hyperparams_vectorizer)  # ngram_range=(1,2), max_df=0.9, min_df=0.02, token_pattern="(?u)\b\w\w+\b"
 
-    # ! choose correct pre-processed text column here. possible vectorizers: "tfidf", "embeddings-en", "embeddings-multi"
-    #for group_lang, group_df_test_scenario in df_test_scenario.groupby(by="language_iso"):
 
+    ### Evaluation - seperate calculation of metrics for different languages
+    # ! undo this loop again - do iteration over lang via the main loop
+    # ! issue with this loop: test set only has one lang - the one from the main loop - so groupby does not change anything
+    # ! this codeblock should probably rather be a subsetting of df_test for the respective language of the loop (instead of a new loop)
+    # ! can then also maintain the codeblock that prevents multiple trainings for scenarios where only one training is necessary
+    # ! issue ! changes of classifier for random seed - cannot reuse the classifier for all runs.
+    # ! maybe the random seed loop should become the most outer loop? to reduce necessity for retraining
+    #n_language = 0
+    #for group_lang, group_df_test_scenario in df_test_scenario.groupby(by="language_iso", group_keys=False, as_index=False):
+    #    n_language += 1
+
+    # ! choose correct pre-processed text column here. possible vectorizers: "tfidf", "embeddings-en", "embeddings-multi"
     X_train, X_test = choose_preprocessed_text(df_train_scenario_samp_augment=df_train_scenario_samp_augment, df_test_scenario=df_test_scenario, augmentation=AUGMENTATION, vectorizer=VECTORIZER, vectorizer_sklearn=vectorizer_sklearn, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR, method=METHOD)
 
 
@@ -320,11 +354,22 @@ for lang, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterat
 
 
     # training on train set sample
-    if MODEL_NAME == "SVM":
-        clf = svm.SVC(**hyperparams_clf)
-    elif MODEL_NAME == "logistic":
-        clf = linear_model.LogisticRegression(**hyperparams_clf)
-    clf.fit(X_train, y_train)
+    # train 1 (*n_seeds) or 7 (*n_seeds) classifiers, depending on scenario
+    # these scenarios needs re-training
+    if (n_language == 1) or ((AUGMENTATION in ["no-nmt-many", "many2many"]) and (VECTORIZER in ["tfidf", "embeddings-en"])) or ((AUGMENTATION in ["one2anchor"]) and (VECTORIZER in ["embeddings-multi", "tfidf"])) or ((AUGMENTATION in ["many2anchor"]) and (VECTORIZER in ["tfidf"])):  # tfidf in here, because classifier expects always same feature input length as it has been trained on. this varies for tfidf across languages
+        if MODEL_NAME == "SVM":
+            clf = svm.SVC(**hyperparams_clf)
+        elif MODEL_NAME == "logistic":
+            clf = linear_model.LogisticRegression(**hyperparams_clf)
+        clf.fit(X_train, y_train)
+        print("Training new classifier")
+        if n_language == 1:
+            model_dic.update({random_seed_sample: clf})
+    # otherwise, re-use previous classifier
+    else:
+        print("! Skipping training of new classifier, because can reuse previous one !")
+        clf = model_dic[random_seed_sample]
+
 
 
     # prediction on test set
@@ -334,12 +379,15 @@ for lang, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterat
     ### metrics
     metric_step = compute_metrics_classical_ml(label_pred, label_gold, label_text_alphabetical=np.sort(df_cl.label_text.unique()))
 
-    k_samples_experiment_dic.update({"n_train_total": len(df_train_scenario_samp), f"metrics_seed_{random_seed_sample}": metric_step})
+    experiment_details_dic_lang.update({f"metrics_seed_{random_seed_sample}_lang_{lang}": metric_step})
     f1_macro_lst.append(metric_step["eval_f1_macro"])
     f1_micro_lst.append(metric_step["eval_f1_micro"])
     accuracy_balanced_lst.append(metric_step["eval_accuracy_balanced"])
 
-    if (n_sample == 0) and (n_sample == 999_999):  # only one inference necessary on same test set in case of zero-shot or full dataset
+    print(f"evaluation done for lang:  {lang}")
+    np.random.seed(SEED_GLOBAL)
+
+    if (n_sample == 0) or (n_sample == 999_999):  # only one inference necessary on same test set in case of zero-shot or full dataset
       break
 
 
@@ -357,12 +405,11 @@ for lang, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterat
   accuracy_balanced_std = np.std(accuracy_balanced_lst)
   # add aggregate metrics to overall experiment dict
   metrics_mean = {"f1_macro_mean": f1_macro_mean, "f1_micro_mean": f1_micro_mean, "accuracy_balanced_mean": accuracy_balanced_mean, "f1_macro_std": f1_macro_std, "f1_micro_std": f1_micro_std, "accuracy_balanced_std": accuracy_balanced_std}
-  k_samples_experiment_dic.update({"metrics_mean": metrics_mean, "dataset": DATASET_NAME, "n_classes": len(df_cl.label_text.unique()), "train_eval_time_per_model": t_total})
+  experiment_details_dic_lang.update({"metrics_mean": metrics_mean, "dataset": DATASET_NAME, "n_train_total": len(df_train_scenario_samp), "n_classes": len(df_cl.label_text.unique()), "train_eval_time_per_model": t_total})
 
 
   # update of overall experiment dic
-  experiment_details_dic_step = {f"experiment_sample_{n_sample_string}_{METHOD}_{MODEL_NAME}_{lang}": k_samples_experiment_dic}
-  experiment_details_dic.update(experiment_details_dic_step)
+  experiment_details_dic.update({f"experiment_sample_{n_sample_string}_{METHOD}_{MODEL_NAME}_{lang}": experiment_details_dic_lang})
 
 
   ## stop loop for multiple language case - no separate iterations per language necessary
@@ -375,7 +422,7 @@ for lang, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterat
 
 ### summary dictionary across all languages
 experiment_summary_dic = {"experiment_summary":
-     {"dataset": DATASET_NAME, "sample_size": N_SAMPLE_DEV, "method": METHOD, "model_name": MODEL_NAME, "vectorizer": VECTORIZER, "lang_anchor": LANGUAGE_ANCHOR, "lang_train": LANGUAGE_TRAIN, "lang_all": LANGUAGES, "augmentation": AUGMENTATION}
+     {"dataset": DATASET_NAME, "model_name": MODEL_NAME, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "lang_anchor": LANGUAGE_ANCHOR, "lang_train": LANGUAGE_TRAIN, "lang_all": LANGUAGES, "method": METHOD, "sample_size": N_SAMPLE_DEV}
  }
 # calculate averages across all languages
 f1_macro_lst_mean = []

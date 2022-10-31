@@ -110,7 +110,7 @@ elif EXECUTION_TERMINAL == False:
                             "--dataset", "manifesto-8",
                             "--languages", "en", "de", "es", "fr", "tr", "ru", "ko",
                             "--language_anchor", "en", "--language_train", "en",  # in multiling scenario --language_train needs to be list of lang (?)
-                            "--augmentation_nmt", "many2many",  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
+                            "--augmentation_nmt", "one2anchor",  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
                             "--sample_interval", "300",  #"100", "500", "1000", #"2500", "5000", #"10000",
                             "--method", "classical_ml", "--model", "logistic",  # SVM, logistic
                             "--vectorizer", "embeddings-multi",  # "tfidf", "embeddings-en", "embeddings-multi"
@@ -245,8 +245,8 @@ def optuna_objective(trial, lang=None, n_sample=None, df_train=None, df=None):  
   global df_train_scenario_samp_augment
   global df_dev_scenario
   global df_dev_scenario_samp
-  global df_train_scenario_samp_ids
-  global df_dev_scenario_samp_ids
+  #global df_train_scenario_samp_ids
+  #global df_dev_scenario_samp_ids
 
   if VECTORIZER == "tfidf":
       # https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html
@@ -257,7 +257,8 @@ def optuna_objective(trial, lang=None, n_sample=None, df_train=None, df=None):  
           'analyzer': trial.suggest_categorical("analyzer", ["word", "char_wb"]),  # could be good for languages like Korean where longer sequences of characters without a space seem to represent compound words
       }
       vectorizer_sklearn = TfidfVectorizer(lowercase=True, stop_words=None, norm="l2", use_idf=True, smooth_idf=True, **hyperparams_vectorizer)  # ngram_range=(1,2), max_df=0.9, min_df=0.02, token_pattern="(?u)\b\w\w+\b"
-  if  "embeddings" in VECTORIZER:
+  elif "embeddings" in VECTORIZER:
+      vectorizer_sklearn = ["asdufzasudfzgasudfg"]
       hyperparams_vectorizer = {}
 
   # SVM  # https://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html
@@ -344,14 +345,14 @@ def optuna_objective(trial, lang=None, n_sample=None, df_train=None, df=None):  
     print("Number of validation examples after sampling: ", len(df_dev_scenario_samp))
 
     ### data augmentation on sample for multiling model + MT scenarios
-    df_train_scenario_samp_augment = data_augmentation(df_train_scenario_samp=df_train_scenario_samp, df_train=df_train_split, lang=lang, augmentation=AUGMENTATION, vectorizer=VECTORIZER)
+    df_train_scenario_samp_augment = data_augmentation(df_train_scenario_samp=df_train_scenario_samp, df_train=df_train_split, lang=lang, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR, augmentation=AUGMENTATION, vectorizer=VECTORIZER)
     print("Number of training examples after possible augmentation: ", len(df_train_scenario_samp_augment))
 
 
     clean_memory()
     ## ! choose correct pre-processed text column here
     # possible vectorizers: "tfidf", "embeddings-en", "embeddings-multi"
-    X_train, X_test = choose_preprocessed_text(df_train_scenario_samp_augment=df_train_scenario_samp_augment, df_test_scenario=df_dev_scenario_samp, augmentation=AUGMENTATION, vectorizer=VECTORIZER, vectorizer_sklearn=vectorizer_sklearn)
+    X_train, X_test = choose_preprocessed_text(df_train_scenario_samp_augment=df_train_scenario_samp_augment, df_test_scenario=df_dev_scenario_samp, augmentation=AUGMENTATION, vectorizer=VECTORIZER, vectorizer_sklearn=vectorizer_sklearn, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR, method=METHOD)
 
     y_train = df_train_scenario_samp_augment.label
     y_test = df_dev_scenario_samp.label
@@ -426,7 +427,7 @@ def run_study(n_sample=None, lang=None):
 hp_study_dic = {}
 for n_sample in N_SAMPLE_DEV:
     hp_study_dic_scenario = {}
-    # ! only sample of languages for faster testing
+
     for lang in tqdm.tqdm(LANGUAGES, leave=False):
 
       #if (lang == LANGUAGE_TRAIN) and (AUGMENTATION in ["no-nmt-single", "one2anchor", "one2many"]):

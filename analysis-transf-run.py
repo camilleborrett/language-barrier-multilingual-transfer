@@ -243,7 +243,7 @@ if "mDeBERTa".lower() in MODEL_NAME.lower(): fp16_bool = False  # mDeBERTa does 
 #### K example intervals loop
 # will automatically only run once if only 1 element in HYPER_PARAMS_LST for runs with one good hp-value
 experiment_details_dic = {}
-for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Iterations for different number of texts", leave=True):
+for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Iterations for different languages and hps", leave=True):
   np.random.seed(SEED_GLOBAL)
   t_start = time.time()   # log how long training of model takes
 
