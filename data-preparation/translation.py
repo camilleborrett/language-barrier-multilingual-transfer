@@ -1,4 +1,23 @@
 
+
+# Create the argparse to pass arguments via terminal
+import argparse
+parser = argparse.ArgumentParser(description='Pass arguments via terminal')
+
+parser.add_argument('-nmt', '--nmt_model', type=str,
+                    help='Which neural machine translation model to use? "opus-mt", "m2m_100_1.2B", "m2m_100_418M" ')
+parser.add_argument('-b', '--batch_size', type=int,
+                    help='batch_size for translations')
+parser.add_argument('-ds', '--dataset', type=str,
+                    help='Which dataset?')
+
+args = parser.parse_args()
+
+NMT_MODEL = args.nmt_model
+BATCH_SIZE = args.batch_size
+DATASET = args.dataset
+
+
 ## load packages
 import pandas as pd
 import numpy as np
@@ -14,12 +33,12 @@ def clean_memory():
   gc.collect()
 
 
-BATCH_SIZE = 64
+#BATCH_SIZE = 64
 
 
 ## load df to translate
-df_train = pd.read_csv("./data-clean/df_manifesto_train.csv", sep=",")   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',
-df_test = pd.read_csv("./data-clean/df_manifesto_test.csv", sep=",")   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',
+df_train = pd.read_csv(f"./data-clean/df_{DATASET}_train.csv", sep=",")   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',
+df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test.csv", sep=",")   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',
 
 ## drop duplicates
 print(len(df_train))
@@ -60,7 +79,7 @@ print(df_test_samp.language_iso.value_counts())
 lang_lst = ["en", "de", "es", "fr", "ko", "tr", "ru"]  #["eng", "deu", "spa", "fra", "kor", "jpn", "tur", "rus"]  #"ja"
 
 # has to be M2M due to many language directions
-model = EasyNMT('m2m_100_418M')  # m2m_100_418M, opus-mt, m2m100_1.2B, facebook/m2m100-12B-last-ckpt
+model = EasyNMT(NMT_MODEL)  # m2m_100_418M,  m2m_100_1.2B, facebook/m2m100-12B-last-ckpt  opus-mt,
 
 def translate_all2all(df=None, lang_lst=None, batch_size=8):
   df_step_lst = []
@@ -90,7 +109,7 @@ df_test_trans_concat = pd.concat([df_test_samp, df_test_samp_trans], axis=0)
 df_test_trans_concat = df_test_trans_concat.drop_duplicates()
 print(len(df_test_trans_concat))
 # write to disk
-df_test_trans_concat.to_csv("./data-clean/df_manifesto_test_trans.csv", index=False)
+df_test_trans_concat.to_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}.csv", index=False)
 
 ## translate test
 df_train_samp_trans = translate_all2all(df=df_train_samp, lang_lst=lang_lst, batch_size=BATCH_SIZE)  # df[df.language.isin(["de", "en"])].sample(n=20, random_state=42)
@@ -102,7 +121,7 @@ df_train_trans_concat = pd.concat([df_train_samp, df_train_samp_trans], axis=0)
 df_train_trans_concat = df_train_trans_concat.drop_duplicates()
 print(len(df_train_trans_concat))
 # write to disk
-df_train_trans_concat.to_csv("./data-clean/df_manifesto_train_trans.csv", index=False)
+df_train_trans_concat.to_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}.csv", index=False)
 
 
 

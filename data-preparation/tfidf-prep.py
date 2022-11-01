@@ -1,20 +1,34 @@
 
 
+# Create the argparse to pass arguments via terminal
+import argparse
+parser = argparse.ArgumentParser(description='Pass arguments via terminal')
+
+parser.add_argument('-nmt', '--nmt_model', type=str,
+                    help='Which neural machine translation model to use? "opus-mt", "m2m_100_1.2B", "m2m_100_418M" ')
+parser.add_argument('-ds', '--dataset', type=str,
+                    help='Which dataset?')
+
+args = parser.parse_args()
+
+NMT_MODEL = args.nmt_model
+DATASET = args.dataset
+
+
 import pandas as pd
 import numpy as np
 import spacy
 import tqdm
 
 SEED_GLOBAL = 42
-DATASET_NAME = "manifesto-8"
 
 ## load dataset to process
-if "manifesto-8" in DATASET_NAME:
+if "manifesto-8" in DATASET:
   #df_cl = pd.read_csv("./data-clean/df_manifesto_all.csv", index_col="idx")
-  df_train = pd.read_csv("./data-clean/df_manifesto_train_trans_embed.csv", index_col="idx")
-  df_test = pd.read_csv("./data-clean/df_manifesto_test_trans_embed.csv", index_col="idx")
+  df_train = pd.read_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}_embed.csv", index_col="idx")
+  df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}_embed.csv", index_col="idx")
 else:
-  raise Exception(f"Dataset name not found: {DATASET_NAME}")
+  raise Exception(f"Dataset name not found: {DATASET}")
 
 # for some reason, some translations are NaN
 # hopefully corrected when final run with bigger translation model
@@ -108,8 +122,8 @@ print(len(df_test_prep))
 
 
 #### write to disk
-df_train_prep.to_csv("./data-clean/df_manifesto_train_trans_embed_tfidf.csv", index=False)
-df_test_prep.to_csv("./data-clean/df_manifesto_test_trans_embed_tfidf.csv", index=False)
+df_train_prep.to_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}_embed_tfidf.csv", index=False)
+df_test_prep.to_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}_embed_tfidf.csv", index=False)
 
 
 

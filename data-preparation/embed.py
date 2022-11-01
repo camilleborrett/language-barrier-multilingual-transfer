@@ -1,5 +1,19 @@
 
 
+# Create the argparse to pass arguments via terminal
+import argparse
+parser = argparse.ArgumentParser(description='Pass arguments via terminal')
+
+parser.add_argument('-nmt', '--nmt_model', type=str,
+                    help='Which neural machine translation model to use? "opus-mt", "m2m_100_1.2B", "m2m_100_418M" ')
+parser.add_argument('-ds', '--dataset', type=str,
+                    help='Which dataset?')
+
+args = parser.parse_args()
+
+NMT_MODEL = args.nmt_model
+DATASET = args.dataset
+
 
 #set wd
 import os
@@ -16,8 +30,8 @@ import numpy as np
 from sentence_transformers import SentenceTransformer, util
 import torch
 
-df_train = pd.read_csv("./data-clean/df_manifesto_train_trans.csv", sep=",").reset_index(drop=True)   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',
-df_test = pd.read_csv("./data-clean/df_manifesto_test_trans.csv", sep=",").reset_index(drop=True)   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',#
+df_train = pd.read_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}.csv", sep=",").reset_index(drop=True)   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',
+df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}.csv", sep=",").reset_index(drop=True)   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',#
 
 
 ## load model
@@ -102,5 +116,5 @@ print(sum(pd.isna(df_train_embed["text_original_trans_embed_multi"])))
 print(df_test_embed.drop(columns=["parfam", "date", "party", "partyname"]).sample(n=100, random_state=42))
 
 #### write to disk
-df_train_embed.to_csv("./data-clean/df_manifesto_train_trans_embed.csv", index=False)
-df_test_embed.to_csv("./data-clean/df_manifesto_test_trans_embed.csv", index=False)
+df_train_embed.to_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}_embed.csv", index=False)
+df_test_embed.to_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}_embed.csv", index=False)
