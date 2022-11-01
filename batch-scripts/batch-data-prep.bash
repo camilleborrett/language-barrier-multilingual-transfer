@@ -1,6 +1,6 @@
 #!/bin/bash
 #Set batch job requirements
-#SBATCH -t 80:00:00
+#SBATCH -t 4:00:00
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -21,18 +21,18 @@ pip install -r requirements.txt
 #python ./data-preparation/data-prep-manifesto.py
 
 nmt_model='m2m_100_1.2B'  # m2m_100_418M, m2m_100_1.2B
-batch_size=16
+batch_size=16  # 16, 64
 study_date='221101'
 dataset='manifesto-8'
 
 # trainslate train and test
-python ./data-preparation/translation.py --dataset $dataset --nmt_model $nmt_model --batch_size $batch_size &> ./data-preparation/translate-logs_$dataset_$nmt_model_$study_date.txt
+#python ./data-preparation/translation.py --dataset $dataset --nmt_model $nmt_model --batch_size $batch_size  &> ./data-preparation/translate-logs-$dataset-$nmt_model-$study_date.txt
 
 # embed
-#python ./data-preparation/embed.py --dataset $dataset --nmt_model $nmt_model &> ./data-preparation/embed-logs_$dataset_$nmt_model_$study_date.txt
+python ./data-preparation/embed.py --dataset $dataset --nmt_model $nmt_model  &> ./data-preparation/embed-logs-$dataset-$nmt_model-$study_date.txt
 
 # tfidf
-#python ./data-preparation/tfidf-prep.py --dataset $dataset --nmt_model $nmt_model &> ./data-preparation/tfidf-logs_$dataset_$nmt_model_$study_date.txt
+python ./data-preparation/tfidf-prep.py --dataset $dataset --nmt_model $nmt_model  &> ./data-preparation/tfidf-logs-$dataset-$nmt_model-$study_date.txt
 
 
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Set batch job requirements
-#SBATCH -t 5:00:00
+#SBATCH -t 25:00:00
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -37,7 +37,7 @@ n_cross_val_final=3
 model='transformer'
 method='standard_dl'
 dataset='manifesto-8'
-nmt_model='m2m_100_1.2B'  # m2m_100_418M, m2m_100_1.2B
+nmt_model='m2m_100_418M'  # m2m_100_418M, m2m_100_1.2B
 
 translation_lst='one2anchor no-nmt-many many2anchor many2many'
 vectorizer_lst='embeddings-en embeddings-multi'
