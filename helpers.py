@@ -241,8 +241,6 @@ def choose_preprocessed_text(df_train_scenario_samp_augment=None, df_test_scenar
         return X_train, X_test
 
     elif method == "standard_dl":
-        # ? can I just always choose the translated text column? it will contain the original text if iso-original == iso-trans. This will be determined by preceeding functions
-        # to double check
         # standard BERT (en)
         if vectorizer == "embeddings-en":
             #if augmentation in ["one2anchor", "no-nmt-multi", "many2anchor", "many2many"]:
@@ -534,8 +532,8 @@ def set_train_args(hyperparams_dic=None, training_directory=None, disable_tqdm=F
     # https://huggingface.co/transformers/main_classes/trainer.html#transformers.TrainingArguments
     
     train_args = TrainingArguments(
-        output_dir=f'./{training_directory}',  #f'./results/{training_directory}',
-        logging_dir=f'./{training_directory}',  #f'./logs/{training_directory}',
+        output_dir=f"./{training_directory}", #f'./{training_directory}',  #f'./results/{training_directory}',
+        logging_dir=f"./{training_directory}", #f'./{training_directory}',  #f'./logs/{training_directory}',
         **hyperparams_dic,
         **kwargs,
         # num_train_epochs=4,

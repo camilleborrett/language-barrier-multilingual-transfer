@@ -1,19 +1,25 @@
 
 
 import sys
-if sys.stdin.isatty():
+# does not work on snellius
+"""if sys.stdin.isatty():
     EXECUTION_TERMINAL = True
 else:
     EXECUTION_TERMINAL = False
-print("Terminal execution: ", EXECUTION_TERMINAL, "  (sys.stdin.isatty(): ", sys.stdin.isatty(), ")")
+print("Terminal execution: ", EXECUTION_TERMINAL, "  (sys.stdin.isatty(): ", sys.stdin.isatty(), ")")"""
+if len(sys.argv) > 1:
+    EXECUTION_TERMINAL = True
+else:
+    EXECUTION_TERMINAL = False
+print("Terminal execution: ", EXECUTION_TERMINAL, "  (len(sys.argv): ", len(sys.argv), ")")
 
 
 # ! had protobuf==4.21.3, downgraded to pip install protobuf==3.20.* to avoid error when running minilm https://stackoverflow.com/questions/72441758/typeerror-descriptors-cannot-not-be-created-directly
 # need to add to requirements.txt if it works
 
 # can maybe save disk space by deleting some cached models
-from transformers import file_utils
-print(file_utils.default_cache_path)
+#from transformers import file_utils
+#print(file_utils.default_cache_path)
 
 # ## Load packages
 import transformers
@@ -52,7 +58,7 @@ import argparse
 # https://docs.python.org/3/library/argparse.html
 
 # Create the parser
-parser = argparse.ArgumentParser(description='Run hyperparameter tuning with different algorithms on different datasets')
+parser = argparse.ArgumentParser(description='Do final run with best hyperparameters (on different languages, datasets, algorithms)')
 
 ## Add the arguments
 # arguments only for test script
@@ -103,11 +109,11 @@ elif EXECUTION_TERMINAL == False:
   args = parser.parse_args(["--n_cross_val_final", "2",  #--zeroshot
                             "--dataset", "manifesto-8",
                             "--languages", "en", "de", "es", "fr", "tr", "ru", "ko",
-                            "--language_anchor", "en", "--language_train", "en",  # in multiling scenario --language_train needs to be list of lang (?)
-                            "--augmentation_nmt", "many2many",  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
-                            "--sample_interval", "300",  #"100", "500", "1000", #"2500", "5000", #"10000",
-                            "--method", "classical_ml", "--model", "microsoft/Multilingual-MiniLM-L12-H384",  # "microsoft/Multilingual-MiniLM-L12-H384", "microsoft/MiniLM-L12-H384-uncased"
-                            "--vectorizer", "embeddings-multi",  # "tfidf", "embeddings-en", "embeddings-multi"
+                            "--language_anchor", "en", "--language_train", "en",  # in multiling scenario --language_train is not used
+                            "--augmentation_nmt", "one2anchor",  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
+                            "--sample_interval", "30",  #"100", "500", "1000", #"2500", "5000", #"10000",
+                            "--method", "standard_dl", "--model", "microsoft/MiniLM-L12-H384-uncased",  # "microsoft/Multilingual-MiniLM-L12-H384", "microsoft/MiniLM-L12-H384-uncased"
+                            "--vectorizer", "embeddings-en",  # "tfidf", "embeddings-en", "embeddings-multi"
                             "--hyperparam_study_date", "20221026"])
 
 
@@ -120,7 +126,7 @@ ZEROSHOT = args.zeroshot
 # choose dataset
 DATASET_NAME = args.dataset  # "sentiment-news-econ" "coronanet" "cap-us-court" "cap-sotu" "manifesto-8" "manifesto-military" "manifesto-protectionism" "manifesto-morality" "manifesto-nationalway" "manifesto-44" "manifesto-complex"
 LANGUAGES = args.languages
-LANGUAGES = LANGUAGES[:3]
+LANGUAGES = LANGUAGES[:4]
 LANGUAGE_TRAIN = args.language_train
 LANGUAGE_ANCHOR = args.language_anchor
 AUGMENTATION = args.augmentation_nmt
@@ -131,6 +137,12 @@ VECTORIZER = args.vectorizer
 # decide on model to run
 METHOD = args.method  # "standard_dl", "nli", "classical_ml"
 MODEL_NAME = args.model  # "SVM"
+if (MODEL_NAME == "transformer") and (VECTORIZER == "embeddings-en"):
+    MODEL_NAME = "microsoft/MiniLM-L12-H384-uncased"
+elif (MODEL_NAME == "transformer") and (VECTORIZER == "embeddings-multi"):
+    MODEL_NAME = "microsoft/Multilingual-MiniLM-L12-H384"
+else:
+    raise Exception(f"Scenario for transformer name not implemented for MODEL_NAME {MODEL_NAME} and VECTORIZER {VECTORIZER}")
 
 HYPERPARAM_STUDY_DATE = args.hyperparam_study_date  #"20220304"
 
@@ -221,15 +233,15 @@ from helpers import select_data_for_scenario_hp_search, select_data_for_scenario
 # selective load one decent set of hps for testing
 #hp_study_dic = joblib.load("/Users/moritzlaurer/Dropbox/PhD/Papers/nli/snellius/NLI-experiments/results/manifesto-8/optuna_study_deberta-v3-base_01000samp_20221006.pkl")
 
-# select best hp
+# select best hp (taking standard hps)
 n_sample = N_SAMPLE_DEV[0]
 n_sample_string = N_SAMPLE_DEV[0]
 while len(str(n_sample_string)) <= 4:
     n_sample_string = "0" + str(n_sample_string)
 
-## testing with manually set hyperparameters
-N_SAMPLE_TEST = N_SAMPLE_DEV * len(LANGUAGES)
-HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 40, 'seed': 42, 'per_device_train_batch_size': 16, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 128}]
+## running with standard good hyperparameters
+#N_SAMPLE_TEST = N_SAMPLE_DEV * len(LANGUAGES)
+HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 30, 'seed': 42, 'per_device_train_batch_size': 16, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 128}]
 HYPER_PARAMS_LST = HYPER_PARAMS_LST * len(LANGUAGES)
 print(HYPER_PARAMS_LST)
 
@@ -243,7 +255,9 @@ if "mDeBERTa".lower() in MODEL_NAME.lower(): fp16_bool = False  # mDeBERTa does 
 #### K example intervals loop
 # will automatically only run once if only 1 element in HYPER_PARAMS_LST for runs with one good hp-value
 experiment_details_dic = {}
+n_language = 0
 for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Iterations for different languages and hps", leave=True):
+  n_language += 1
   np.random.seed(SEED_GLOBAL)
   t_start = time.time()   # log how long training of model takes
 
@@ -252,13 +266,16 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
 
 
   # prepare loop
-  k_samples_experiment_dic = {"method": METHOD, "language_source": lang, "language_anchor": LANGUAGE_ANCHOR, "n_sample": n_sample, "model": MODEL_NAME, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "hyperparams": hyperparams}  # "trainer_args": train_args, "hypotheses": HYPOTHESIS_TYPE, "dataset_stats": dataset_stats_dic
+  experiment_details_dic_lang = {"method": METHOD, "language_source": lang, "language_anchor": LANGUAGE_ANCHOR, "n_sample": n_sample, "model": MODEL_NAME, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "hyperparams": hyperparams}  # "trainer_args": train_args, "hypotheses": HYPOTHESIS_TYPE, "dataset_stats": dataset_stats_dic
   f1_macro_lst = []
   f1_micro_lst = []
   accuracy_balanced_lst = []
   # randomness stability loop. Objective: calculate F1 across N samples to test for influence of different (random) samples
   np.random.seed(SEED_GLOBAL)
+  if n_language == 1:
+      model_dic = {}  # storing trained classifiers to avoid re-training when not necessary
   for random_seed_sample in tqdm.tqdm(np.random.choice(range(1000), size=CROSS_VALIDATION_REPETITIONS_FINAL), desc="Iterations for std", leave=True):
+    print("Random seed: ", random_seed_sample)
 
     ## take sample in accordance with scenario
     if n_sample == 999_999:  # all data, no sampling
@@ -273,12 +290,12 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
     print("Number of test examples after sampling: ", len(df_test_scenario))
     print("Number of training examples after sampling: ", len(df_train_scenario_samp))
 
-    if (n_sample == 0) and (METHOD == "standard_dl"):
+    if (n_sample == 0) and (METHOD != "nli"):
       metric_step = {'accuracy_balanced': 0, 'accuracy_not_b': 0, 'f1_macro': 0, 'f1_micro': 0}
       f1_macro_lst.append(0)
       f1_micro_lst.append(0)
       accuracy_balanced_lst.append(0)
-      k_samples_experiment_dic.update({"n_train_total": len(df_train_scenario_samp), f"metrics_seed_{random_seed_sample}": metric_step})
+      experiment_details_dic_lang.update({"n_train_total": len(df_train_scenario_samp), f"metrics_seed_{random_seed_sample}": metric_step})
       break
 
 
@@ -288,9 +305,15 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
 
     print("Number of training examples after (potential) augmentation: ", len(df_train_scenario_samp_augment))
 
+    print("\nCounts for checking augmentation issues: ")
+    print("\nCount for df_train_scenario_samp_augment.language_iso: ", df_train_scenario_samp_augment.language_iso.value_counts())
+    print("Count for df_train_scenario_samp_augment.language_iso_trans: ", df_train_scenario_samp_augment.language_iso_trans.value_counts())
+
+    print("\nCount for df_test_scenario.language_iso: ", df_test_scenario.language_iso.value_counts())
+    print("Count for df_test_scenario.language_iso_trans: ", df_test_scenario.language_iso_trans.value_counts())
 
     ### text pre-processing
-    # !? double check if it's correct to just always take the "text_original_trans" column for both BERT models. should be correct because contains original text if iso-original == iso-trans. This should be done correctly upstream
+    # careful: double check if it's correct to just always take the "text_original_trans" column for both BERT models. should be correct because contains original text if iso-original == iso-trans. This should be done correctly upstream
     df_train_scenario_samp_augment_textcol, df_test_scenario_textcol = choose_preprocessed_text(df_train_scenario_samp_augment=df_train_scenario_samp_augment, df_test_scenario=df_test_scenario, augmentation=AUGMENTATION, vectorizer=VECTORIZER, vectorizer_sklearn=None, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR, method=METHOD)
     df_train_scenario_samp_augment_textcol = df_train_scenario_samp_augment_textcol.sample(frac=1.0, random_state=random_seed_sample)
 
@@ -298,23 +321,53 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
     model, tokenizer = load_model_tokenizer(model_name=MODEL_NAME, method=METHOD, label_text_alphabetical=LABEL_TEXT_ALPHABETICAL)
     encoded_dataset = tokenize_datasets(df_train_samp=df_train_scenario_samp_augment_textcol, df_test=df_test_scenario_textcol, tokenizer=tokenizer, method=METHOD, max_length=None)
 
-    train_args = set_train_args(hyperparams_dic=hyperparams, training_directory=TRAINING_DIRECTORY, disable_tqdm=False, evaluation_strategy="no", fp16=fp16_bool)  # seed=random_seed_sample ! can the order to data loading via seed (but then different from HP search)
-    trainer = create_trainer(model=model, tokenizer=tokenizer, encoded_dataset=encoded_dataset, train_args=train_args, 
-                             method=METHOD, label_text_alphabetical=LABEL_TEXT_ALPHABETICAL)
+    train_args = set_train_args(hyperparams_dic=hyperparams, training_directory=TRAINING_DIRECTORY, disable_tqdm=False, evaluation_strategy="no", fp16=fp16_bool)  # could also vary the seed here, but just also taking 42 for simplicity
+    #trainer = create_trainer(model=model, tokenizer=tokenizer, encoded_dataset=encoded_dataset, train_args=train_args,
+    #                         method=METHOD, label_text_alphabetical=LABEL_TEXT_ALPHABETICAL)
+    #clean_memory()
+
+    #if n_sample != 0:
+    #  trainer.train()
+
+    # training on train set sample
+    # train 1 (*n_seeds) or 7 (*n_seeds) classifiers, depending on scenario
+    # these scenarios needs re-training
+    import copy
+    if (n_language == 1) or ((AUGMENTATION in ["no-nmt-many", "many2many"]) and (VECTORIZER in ["tfidf", "embeddings-en"])) or ((AUGMENTATION in ["one2anchor"]) and (VECTORIZER in ["embeddings-multi", "tfidf"])) or ((AUGMENTATION in ["many2anchor"]) and (VECTORIZER in ["tfidf"])):  # tfidf in here, because classifier expects always same feature input length as it has been trained on. this varies for tfidf across languages
+        #model_dic.update({f"model_{random_seed_sample}": copy.deepcopy(model)})
+        trainer = create_trainer(model=model, tokenizer=tokenizer, encoded_dataset=encoded_dataset, train_args=train_args,
+                                 method=METHOD, label_text_alphabetical=LABEL_TEXT_ALPHABETICAL)
+        trainer.train()
+        print("Training new classifier")
+        if n_language == 1:
+            #model_dic.update({f"trainer_{random_seed_sample}": copy.deepcopy(trainer)})
+            # saving models locally, because copy.deepcopy leads to error: "TypeError: cannot pickle 'torch._C.Generator' object"  - seems like I cannot deepcopy the trainer object
+            model_temp_path_local = f"./{TRAINING_DIRECTORY}/model_temp_{random_seed_sample}/"
+            trainer.save_model(output_dir=model_temp_path_local)
+    # otherwise, re-use previous classifier
+    else:
+        print("! Skipping training of new classifier, because can reuse previous one !")
+        #trainer = model_dic[f"trainer_{random_seed_sample}"]
+        model_temp_path_local = f"./{TRAINING_DIRECTORY}/model_temp_{random_seed_sample}/"
+        from transformers import AutoModelForSequenceClassification
+        trainer = create_trainer(model=AutoModelForSequenceClassification.from_pretrained(model_temp_path_local), tokenizer=tokenizer, encoded_dataset=encoded_dataset, train_args=train_args,
+                                 method=METHOD, label_text_alphabetical=LABEL_TEXT_ALPHABETICAL)
     clean_memory()
 
 
-    if n_sample != 0:
-      trainer.train()
-
 
     ### metrics
-    results = trainer.evaluate()  # eval_dataset=encoded_dataset_test
+    # https://huggingface.co/docs/transformers/main_classes/trainer#transformers.Trainer.evaluate
+    # ! check if copied trainer also uses copied model - suppose that if not, results would be very bad for later languages. also deepcopying model before creating trainer
+    results = trainer.evaluate()  # eval_dataset=encoded_dataset["test"]
 
-    k_samples_experiment_dic.update({"n_train_total": len(df_train_scenario_samp), f"metrics_seed_{random_seed_sample}": results})
+    experiment_details_dic_lang.update({f"metrics_seed_{random_seed_sample}_lang_{lang}": results})
     f1_macro_lst.append(results["eval_f1_macro"])
     f1_micro_lst.append(results["eval_f1_micro"])
     accuracy_balanced_lst.append(results["eval_accuracy_balanced"])
+
+    print(f"evaluation done for lang:  {lang}")
+    np.random.seed(SEED_GLOBAL)
 
     if (n_sample == 0) or (n_sample == 999_999):  # only one inference necessary on same test set in case of zero-shot or full dataset
       break
@@ -334,12 +387,12 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
   accuracy_balanced_std = np.std(accuracy_balanced_lst)
   # add aggregate metrics to overall experiment dict
   metrics_mean = {"f1_macro_mean": f1_macro_mean, "f1_micro_mean": f1_micro_mean, "accuracy_balanced_mean": accuracy_balanced_mean, "f1_macro_std": f1_macro_std, "f1_micro_std": f1_micro_std, "accuracy_balanced_std": accuracy_balanced_std}
-  k_samples_experiment_dic.update({"metrics_mean": metrics_mean, "dataset": DATASET_NAME, "n_classes": len(LABEL_TEXT_ALPHABETICAL), "train_eval_time_per_model": t_total})
+  #experiment_details_dic_lang.update({"metrics_mean": metrics_mean, "dataset": DATASET_NAME, "n_classes": len(LABEL_TEXT_ALPHABETICAL), "train_eval_time_per_model": t_total})
+  experiment_details_dic_lang.update({"metrics_mean": metrics_mean, "dataset": DATASET_NAME, "n_train_total": len(df_train_scenario_samp), "n_classes": len(df_cl.label_text.unique()), "train_eval_time_per_model": t_total})
 
 
   # update of overall experiment dic
-  experiment_details_dic_step = {f"experiment_sample_{n_sample_string}_{METHOD}_{MODEL_NAME}_{lang}": k_samples_experiment_dic}
-  experiment_details_dic.update(experiment_details_dic_step)
+  experiment_details_dic.update({f"experiment_sample_{n_sample_string}_{METHOD}_{MODEL_NAME}_{lang}": experiment_details_dic_lang})
 
 
   ## stop loop for multiple language case - no separate iterations per language necessary
@@ -355,8 +408,9 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
 
 ### summary dictionary across all languages
 experiment_summary_dic = {"experiment_summary":
-     {"dataset": DATASET_NAME, "sample_size": N_SAMPLE_DEV, "method": METHOD, "model_name": MODEL_NAME, "vectorizer": VECTORIZER, "lang_anchor": LANGUAGE_ANCHOR, "lang_train": LANGUAGE_TRAIN, "lang_all": LANGUAGES, "augmentation": AUGMENTATION}
+     {"dataset": DATASET_NAME, "model_name": MODEL_NAME, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "lang_anchor": LANGUAGE_ANCHOR, "lang_train": LANGUAGE_TRAIN, "lang_all": LANGUAGES, "method": METHOD, "sample_size": N_SAMPLE_DEV}
  }
+
 # calculate averages across all languages
 f1_macro_lst_mean = []
 f1_micro_lst_mean = []
@@ -372,31 +426,62 @@ for experiment_key in experiment_details_dic:
     f1_micro_lst_mean_std.append(experiment_details_dic[experiment_key]['metrics_mean']['f1_micro_std'])
     accuracy_balanced_lst_mean_std.append(experiment_details_dic[experiment_key]['metrics_mean']['accuracy_balanced_std'])
     #print(f"{experiment_key}: f1_macro: {experiment_details_dic[experiment_key]['metrics_mean']['f1_macro_mean']} , f1_micro: {experiment_details_dic[experiment_key]['metrics_mean']['f1_micro_mean']} , accuracy_balanced: {experiment_details_dic[experiment_key]['metrics_mean']['accuracy_balanced_mean']}")
-f1_macro_lst_mean = np.mean(f1_macro_lst_mean)
-f1_micro_lst_mean = np.mean(f1_micro_lst_mean)
-accuracy_balanced_lst_mean = np.mean(accuracy_balanced_lst_mean)
-f1_macro_lst_mean_std = np.mean(f1_macro_lst_mean_std)
-f1_micro_lst_mean_std = np.mean(f1_micro_lst_mean_std)
-accuracy_balanced_lst_mean_std = np.mean(accuracy_balanced_lst_mean_std)
+f1_macro_lst_cross_lang_mean = np.mean(f1_macro_lst_mean)
+f1_micro_lst_cross_lang_mean = np.mean(f1_micro_lst_mean)
+accuracy_balanced_lst_cross_lang_mean = np.mean(accuracy_balanced_lst_mean)
+f1_macro_lst_mean_std_mean = np.mean(f1_macro_lst_mean_std)
+f1_micro_lst_mean_std_mean = np.mean(f1_micro_lst_mean_std)
+accuracy_balanced_lst_mean_std_mean = np.mean(accuracy_balanced_lst_mean_std)
+# cross language std
+f1_macro_lst_mean_cross_lang_std = np.std(f1_macro_lst_mean)
+f1_micro_lst_mean_cross_lang_std = np.std(f1_micro_lst_mean)
+accuracy_balanced_lst_mean_cross_lang_std = np.std(accuracy_balanced_lst_mean)
 
-experiment_summary_dic["experiment_summary"].update({"f1_macro_mean": f1_macro_lst_mean, "f1_micro_mean": f1_micro_lst_mean, "accuracy_balanced_mean": accuracy_balanced_lst_mean,
-                               "f1_macro_mean_std": f1_macro_lst_mean_std, "f1_micro_mean_std": f1_micro_lst_mean_std, "accuracy_balanced_mean_std": accuracy_balanced_lst_mean_std})
+experiment_summary_dic["experiment_summary"].update({"f1_macro_mean": f1_macro_lst_cross_lang_mean, "f1_micro_mean": f1_micro_lst_cross_lang_mean, "accuracy_balanced_mean": accuracy_balanced_lst_cross_lang_mean,
+                               "f1_macro_mean_cross_lang_std": f1_macro_lst_mean_cross_lang_std, "f1_micro_mean_cross_lang_std": f1_micro_lst_mean_cross_lang_std, "accuracy_balanced_mean_cross_lang_std": accuracy_balanced_lst_mean_cross_lang_std,
+                               "f1_macro_mean_std_mean": f1_macro_lst_mean_std_mean, "f1_micro_mean_std_mean": f1_micro_lst_mean_std_mean, "accuracy_balanced_mean_std_mean": accuracy_balanced_lst_mean_std_mean})
 
 print(experiment_summary_dic)
 
 
 ### save full experiment dic
 # merge individual languages experiments with summary dic
-experiment_details_dic = {**experiment_details_dic, **experiment_summary_dic}
+experiment_details_dic_summary = {**experiment_details_dic, **experiment_summary_dic}
 
 
 if EXECUTION_TERMINAL == True:
-  joblib.dump(experiment_details_dic, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}.pkl")
+  joblib.dump(experiment_details_dic_summary, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}.pkl")
 elif EXECUTION_TERMINAL == False:
-  joblib.dump(experiment_details_dic, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}_t.pkl")
+  joblib.dump(experiment_details_dic_summary, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}_t.pkl")
 
 
-print("Run done.")
+
+### double checking for issues
+print("\n\nChecking against issues: ")
+print("\nNumber of test examples: ", len(df_test_scenario))
+print("Number of training examples before augmentation: ", len(df_train_scenario_samp))
+print("Number of training examples after (potential) augmentation: ", len(df_train_scenario_samp_augment))
+
+print("\nCounts for checking augmentation issues: ")
+print("df train language counts: ")
+print("Count for df_train_scenario_samp_augment.language_iso: ", df_train_scenario_samp_augment.language_iso.value_counts())
+print("Count for df_train_scenario_samp_augment.language_iso_trans: ", df_train_scenario_samp_augment.language_iso_trans.value_counts())
+print("df test language counts: ")
+print("Count for df_test_scenario.language_iso: ", df_test_scenario.language_iso.value_counts())
+print("Count for df_test_scenario.language_iso_trans: ", df_test_scenario.language_iso_trans.value_counts())
+print("\n")
+
+for experiment_key in experiment_details_dic:
+    if experiment_key != "experiment_summary":
+        print("source lang: ", experiment_details_dic[experiment_key]["language_source"])
+        print("anchor lang: ", experiment_details_dic[experiment_key]["language_anchor"])
+        for metric_seed_keys in [key for key in experiment_details_dic[experiment_key].keys() if "metrics_seed" in str(key)]:
+            print(metric_seed_keys, ": ", experiment_details_dic[experiment_key][metric_seed_keys]["eval_f1_macro"])
+
+
+
+
+print("\n\nRun done.")
 
 
 

@@ -1,12 +1,17 @@
-#!/usr/bin/env python
-# coding: utf-8
+
 
 import sys
-if sys.stdin.isatty():
+# does not work on snellius
+"""if sys.stdin.isatty():
     EXECUTION_TERMINAL = True
 else:
     EXECUTION_TERMINAL = False
-print("Terminal execution: ", EXECUTION_TERMINAL, "  (sys.stdin.isatty(): ", sys.stdin.isatty(), ")")
+print("Terminal execution: ", EXECUTION_TERMINAL, "  (sys.stdin.isatty(): ", sys.stdin.isatty(), ")")"""
+if len(sys.argv) > 1:
+    EXECUTION_TERMINAL = True
+else:
+    EXECUTION_TERMINAL = False
+print("Terminal execution: ", EXECUTION_TERMINAL, "  (len(sys.argv): ", len(sys.argv), ")")
 
 
 # ## Load packages
@@ -128,7 +133,7 @@ CROSS_VALIDATION_REPETITIONS_HYPERPARAM = args.n_cross_val_hyperparam
 # choose dataset
 DATASET_NAME = args.dataset  # "sentiment-news-econ" "coronanet" "cap-us-court" "cap-sotu" "manifesto-8" "manifesto-military" "manifesto-protectionism" "manifesto-morality" "manifesto-nationalway" "manifesto-44" "manifesto-complex"
 LANGUAGES = args.languages
-LANGUAGES = LANGUAGES[:3]
+LANGUAGES = LANGUAGES[:4]
 LANGUAGE_TRAIN = args.language_train
 LANGUAGE_ANCHOR = args.language_anchor
 AUGMENTATION = args.augmentation_nmt

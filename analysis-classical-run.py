@@ -1,11 +1,17 @@
 
 
 import sys
-if sys.stdin.isatty():
+# does not work on snellius
+"""if sys.stdin.isatty():
     EXECUTION_TERMINAL = True
 else:
     EXECUTION_TERMINAL = False
-print("Terminal execution: ", EXECUTION_TERMINAL, "  (sys.stdin.isatty(): ", sys.stdin.isatty(), ")")
+print("Terminal execution: ", EXECUTION_TERMINAL, "  (sys.stdin.isatty(): ", sys.stdin.isatty(), ")")"""
+if len(sys.argv) > 1:
+    EXECUTION_TERMINAL = True
+else:
+    EXECUTION_TERMINAL = False
+print("Terminal execution: ", EXECUTION_TERMINAL, "  (len(sys.argv): ", len(sys.argv), ")")
 
 
 # ## Load packages
@@ -33,7 +39,6 @@ from sklearn import svm, naive_bayes, metrics, linear_model
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, Normalizer
 
-import spacy
 
 
 ## set global seed for reproducibility and against seed hacking
@@ -106,7 +111,7 @@ elif EXECUTION_TERMINAL == False:
   args = parser.parse_args(["--n_cross_val_final", "2",  #--zeroshot
                             "--dataset", "manifesto-8",
                             "--languages", "en", "de", "es", "fr", "tr", "ru", "ko",
-                            "--language_anchor", "en", "--language_train", "en",  # in multiling scenario --language_train needs to be list of lang (?)
+                            "--language_anchor", "en", "--language_train", "en",  # in multiling scenario --language_train is not used
                             "--augmentation_nmt", "many2many",  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
                             "--sample_interval", "300",  #"100", "500", "1000", #"2500", "5000", #"10000",
                             "--method", "classical_ml", "--model", "logistic",  # SVM, logistic
@@ -122,7 +127,7 @@ ZEROSHOT = args.zeroshot
 # choose dataset
 DATASET_NAME = args.dataset  # "sentiment-news-econ" "coronanet" "cap-us-court" "cap-sotu" "manifesto-8" "manifesto-military" "manifesto-protectionism" "manifesto-morality" "manifesto-nationalway" "manifesto-44" "manifesto-complex"
 LANGUAGES = args.languages
-LANGUAGES = LANGUAGES[:3]
+LANGUAGES = LANGUAGES[:4]
 LANGUAGE_TRAIN = args.language_train
 LANGUAGE_ANCHOR = args.language_anchor
 AUGMENTATION = args.augmentation_nmt
@@ -259,23 +264,7 @@ else:
 
 
 #### K example intervals loop
-"""experiment_details_dic = {}
-np.random.seed(SEED_GLOBAL)
-for random_seed_sample in tqdm.tqdm(np.random.choice(range(1000), size=CROSS_VALIDATION_REPETITIONS_FINAL), desc="seed iterations for std", leave=True):
-    np.random.seed(SEED_GLOBAL)
-
-    for lang_train_and_test, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterations for different training runs. Someones only 1 model with one hp-set, sometimes 7", leave=True):
-    # 1 scenario: train 1 algo, test on 7 languages;
-    # 2 scenario: train 7 algos, test each on respective lang
-    t_start = time.time()  # log how long training of model takes
-
-    ### select correct language scenario for train sampling and testing
-    df_train_scenario, df_test_scenario = select_data_for_scenario_final_test(df_train=df_train, df_test=df_test, lang=lang, augmentation=AUGMENTATION, vectorizer=VECTORIZER, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR)
-"""
-
 # will automatically only run once if only 1 element in HYPER_PARAMS_LST for runs with one good hp-value
-# ! to update !: make this loop alwas run 7 times - once for each language to evaluate on (and to train on depending on case)
-# ! but then the training set must not change for scenarios where only 1 training !
 experiment_details_dic = {}
 n_language = 0
 for lang, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterations for different languages and hps", leave=True):
@@ -333,19 +322,7 @@ for lang, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterat
     hyperparams_clf = {key: value for key, value in hyperparams.items() if key not in ["ngram_range", "max_df", "min_df", "analyzer"]}
     vectorizer_sklearn = TfidfVectorizer(lowercase=True, stop_words=None, norm="l2", use_idf=True, smooth_idf=True, **hyperparams_vectorizer)  # ngram_range=(1,2), max_df=0.9, min_df=0.02, token_pattern="(?u)\b\w\w+\b"
 
-
-    ### Evaluation - seperate calculation of metrics for different languages
-    # ! undo this loop again - do iteration over lang via the main loop
-    # ! issue with this loop: test set only has one lang - the one from the main loop - so groupby does not change anything
-    # ! this codeblock should probably rather be a subsetting of df_test for the respective language of the loop (instead of a new loop)
-    # ! can then also maintain the codeblock that prevents multiple trainings for scenarios where only one training is necessary
-    # ! issue ! changes of classifier for random seed - cannot reuse the classifier for all runs.
-    # ! maybe the random seed loop should become the most outer loop? to reduce necessity for retraining
-    #n_language = 0
-    #for group_lang, group_df_test_scenario in df_test_scenario.groupby(by="language_iso", group_keys=False, as_index=False):
-    #    n_language += 1
-
-    # ! choose correct pre-processed text column here. possible vectorizers: "tfidf", "embeddings-en", "embeddings-multi"
+    # choose correct pre-processed text column here. possible vectorizers: "tfidf", "embeddings-en", "embeddings-multi"
     X_train, X_test = choose_preprocessed_text(df_train_scenario_samp_augment=df_train_scenario_samp_augment, df_test_scenario=df_test_scenario, augmentation=AUGMENTATION, vectorizer=VECTORIZER, vectorizer_sklearn=vectorizer_sklearn, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR, method=METHOD)
 
 
@@ -424,6 +401,7 @@ for lang, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterat
 experiment_summary_dic = {"experiment_summary":
      {"dataset": DATASET_NAME, "model_name": MODEL_NAME, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "lang_anchor": LANGUAGE_ANCHOR, "lang_train": LANGUAGE_TRAIN, "lang_all": LANGUAGES, "method": METHOD, "sample_size": N_SAMPLE_DEV}
  }
+
 # calculate averages across all languages
 f1_macro_lst_mean = []
 f1_micro_lst_mean = []
@@ -439,32 +417,62 @@ for experiment_key in experiment_details_dic:
     f1_micro_lst_mean_std.append(experiment_details_dic[experiment_key]['metrics_mean']['f1_micro_std'])
     accuracy_balanced_lst_mean_std.append(experiment_details_dic[experiment_key]['metrics_mean']['accuracy_balanced_std'])
     #print(f"{experiment_key}: f1_macro: {experiment_details_dic[experiment_key]['metrics_mean']['f1_macro_mean']} , f1_micro: {experiment_details_dic[experiment_key]['metrics_mean']['f1_micro_mean']} , accuracy_balanced: {experiment_details_dic[experiment_key]['metrics_mean']['accuracy_balanced_mean']}")
-f1_macro_lst_mean = np.mean(f1_macro_lst_mean)
-f1_micro_lst_mean = np.mean(f1_micro_lst_mean)
-accuracy_balanced_lst_mean = np.mean(accuracy_balanced_lst_mean)
-f1_macro_lst_mean_std = np.mean(f1_macro_lst_mean_std)
-f1_micro_lst_mean_std = np.mean(f1_micro_lst_mean_std)
-accuracy_balanced_lst_mean_std = np.mean(accuracy_balanced_lst_mean_std)
+f1_macro_lst_cross_lang_mean = np.mean(f1_macro_lst_mean)
+f1_micro_lst_cross_lang_mean = np.mean(f1_micro_lst_mean)
+accuracy_balanced_lst_cross_lang_mean = np.mean(accuracy_balanced_lst_mean)
+f1_macro_lst_mean_std_mean = np.mean(f1_macro_lst_mean_std)
+f1_micro_lst_mean_std_mean = np.mean(f1_micro_lst_mean_std)
+accuracy_balanced_lst_mean_std_mean = np.mean(accuracy_balanced_lst_mean_std)
+# cross language std
+f1_macro_lst_mean_cross_lang_std = np.std(f1_macro_lst_mean)
+f1_micro_lst_mean_cross_lang_std = np.std(f1_micro_lst_mean)
+accuracy_balanced_lst_mean_cross_lang_std = np.std(accuracy_balanced_lst_mean)
 
-experiment_summary_dic["experiment_summary"].update({"f1_macro_mean": f1_macro_lst_mean, "f1_micro_mean": f1_micro_lst_mean, "accuracy_balanced_mean": accuracy_balanced_lst_mean,
-                                                     "f1_macro_mean_std": f1_macro_lst_mean_std, "f1_micro_mean_std": f1_micro_lst_mean_std, "accuracy_balanced_mean_std": accuracy_balanced_lst_mean_std})
+experiment_summary_dic["experiment_summary"].update({"f1_macro_mean": f1_macro_lst_cross_lang_mean, "f1_micro_mean": f1_micro_lst_cross_lang_mean, "accuracy_balanced_mean": accuracy_balanced_lst_cross_lang_mean,
+                               "f1_macro_mean_cross_lang_std": f1_macro_lst_mean_cross_lang_std, "f1_micro_mean_cross_lang_std": f1_micro_lst_mean_cross_lang_std, "accuracy_balanced_mean_cross_lang_std": accuracy_balanced_lst_mean_cross_lang_std,
+                               "f1_macro_mean_std_mean": f1_macro_lst_mean_std_mean, "f1_micro_mean_std_mean": f1_micro_lst_mean_std_mean, "accuracy_balanced_mean_std_mean": accuracy_balanced_lst_mean_std_mean})
 
 print(experiment_summary_dic)
 
 
 ### save full experiment dic
 # merge individual languages experiments with summary dic
-experiment_details_dic = {**experiment_details_dic, **experiment_summary_dic}
+experiment_details_dic_summary = {**experiment_details_dic, **experiment_summary_dic}
 
 
 if EXECUTION_TERMINAL == True:
-  joblib.dump(experiment_details_dic, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}.pkl")
+  joblib.dump(experiment_details_dic_summary, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}.pkl")
 elif EXECUTION_TERMINAL == False:
-  joblib.dump(experiment_details_dic, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}_t.pkl")
+  joblib.dump(experiment_details_dic_summary, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}_t.pkl")
 
 
-print("Run done.")
 
+### double checking for issues
+print("\n\nChecking against issues: ")
+print("\nNumber of test examples: ", len(df_test_scenario))
+print("Number of training examples before augmentation: ", len(df_train_scenario_samp))
+print("Number of training examples after (potential) augmentation: ", len(df_train_scenario_samp_augment))
+
+print("\nCounts for checking augmentation issues: ")
+print("df train language counts: ")
+print("Count for df_train_scenario_samp_augment.language_iso: ", df_train_scenario_samp_augment.language_iso.value_counts())
+print("Count for df_train_scenario_samp_augment.language_iso_trans: ", df_train_scenario_samp_augment.language_iso_trans.value_counts())
+print("df test language counts: ")
+print("Count for df_test_scenario.language_iso: ", df_test_scenario.language_iso.value_counts())
+print("Count for df_test_scenario.language_iso_trans: ", df_test_scenario.language_iso_trans.value_counts())
+print("\n")
+
+for experiment_key in experiment_details_dic:
+    if experiment_key != "experiment_summary":
+        print("source lang: ", experiment_details_dic[experiment_key]["language_source"])
+        print("anchor lang: ", experiment_details_dic[experiment_key]["language_anchor"])
+        for metric_seed_keys in [key for key in experiment_details_dic[experiment_key].keys() if "metrics_seed" in str(key)]:
+            print(metric_seed_keys, ": ", experiment_details_dic[experiment_key][metric_seed_keys]["eval_f1_macro"])
+
+
+
+
+print("\n\nRun done.")
 
 
 

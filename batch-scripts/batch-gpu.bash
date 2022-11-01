@@ -1,10 +1,11 @@
 #!/bin/bash
 # Set batch job requirements
 #SBATCH -t 5:00:00
-#SBATCH --partition=thin
+#SBATCH --partition=gpu
+#SBATCH --gpus=1
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=m.laurer@vu.nl
-#SBATCH --job-name=cpu1
+#SBATCH --job-name=gpu1
 #SBATCH --ntasks=32
 
 # Loading modules for Snellius
@@ -20,7 +21,7 @@ pip3 install torch torchvision torchaudio --extra-index-url https://download.pyt
 pip install -r requirements.txt
 
 # for local run
-#bash ./batch-scripts/batch-cpu.bash
+#bash ./batch-scripts/batch-gpu.bash
 
 ## scenarios
 # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
@@ -28,28 +29,24 @@ pip install -r requirements.txt
 
 study_date=20221031
 sample=300
-n_trials=30
-n_trials_sampling=15
-n_trials_pruning=15
+#n_trials=10
+#n_trials_sampling=7
+#n_trials_pruning=7
 n_cross_val_hyperparam=2
-model='logistic'
-method='classical_ml'
+model='transformer'
+method='standard_dl'
 dataset='manifesto-8'
 
 translation_lst='one2anchor no-nmt-many many2anchor many2many'
-vectorizer_lst='tfidf embeddings-en embeddings-multi'
+vectorizer_lst='embeddings-en embeddings-multi'
 
 ## scenario loop
+echo Starting training loop
 for translation in $translation_lst
 do
   for vectorizer in $vectorizer_lst
   do
-    python analysis-classical-hyperparams.py --n_trials $n_trials --n_trials_sampling $n_trials_sampling --n_trials_pruning $n_trials_pruning --n_cross_val_hyperparam $n_cross_val_hyperparam \
-           --dataset $dataset --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" \
-           --augmentation_nmt $translation --model $model --vectorizer $vectorizer --method $method \
-           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/manifesto-8/logs/hp-$model-$translation-$vectorizer-$sample-$study_date-logs.txt
-    echo hp-search done for scenario: $translation $vectorizer
-    python analysis-classical-run.py --n_cross_val_final 2 \
+    python analysis-transf-run.py --n_cross_val_final 2 \
            --dataset $dataset --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" \
            --augmentation_nmt $translation --model $model --vectorizer $vectorizer --method $method \
            --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/manifesto-8/logs/run-$model-$translation-$vectorizer-$sample-$study_date-logs.txt
@@ -65,12 +62,7 @@ for translation in $translation_lst
 do
   for vectorizer in $vectorizer_lst
   do
-    python analysis-classical-hyperparams.py --n_trials $n_trials --n_trials_sampling $n_trials_sampling --n_trials_pruning $n_trials_pruning --n_cross_val_hyperparam $n_cross_val_hyperparam \
-           --dataset $dataset --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" \
-           --augmentation_nmt $translation --model $model --vectorizer $vectorizer --method $method \
-           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/manifesto-8/logs/hp-$model-$translation-$vectorizer-$sample-$study_date-logs.txt
-    echo hp-search done for scenario: $translation $vectorizer
-    python analysis-classical-run.py --n_cross_val_final 2 \
+    python analysis-transf-run.py --n_cross_val_final 2 \
            --dataset $dataset --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" \
            --augmentation_nmt $translation --model $model --vectorizer $vectorizer --method $method \
            --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/manifesto-8/logs/run-$model-$translation-$vectorizer-$sample-$study_date-logs.txt
