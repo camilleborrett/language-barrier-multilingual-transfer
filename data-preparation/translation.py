@@ -11,7 +11,22 @@ parser.add_argument('-b', '--batch_size', type=int,
 parser.add_argument('-ds', '--dataset', type=str,
                     help='Which dataset?')
 
-args = parser.parse_args()
+
+## choose arguments depending on execution in terminal or in script for testing
+# ! does not work reliably in different environments
+import sys
+if len(sys.argv) > 1:
+  print("Arguments passed via the terminal:")
+  args = parser.parse_args()
+  # To show the results of the given option to screen.
+  print("")
+  for key, value in parser.parse_args()._get_kwargs():
+    print(value, "  ", key)
+else:
+  # parse args if not in terminal, but in script
+  args = parser.parse_args(["--nmt_model", "m2m_100_418M",  #"m2m_100_1.2B", "m2m_100_418M"
+                            "--dataset", "manifesto-8", "--batch_size", 16])
+
 
 NMT_MODEL = args.nmt_model
 BATCH_SIZE = args.batch_size
@@ -124,5 +139,6 @@ print(len(df_train_trans_concat))
 df_train_trans_concat.to_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}.csv", index=False)
 
 
+print("Script done.")
 
 

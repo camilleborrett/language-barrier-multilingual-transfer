@@ -9,7 +9,22 @@ parser.add_argument('-nmt', '--nmt_model', type=str,
 parser.add_argument('-ds', '--dataset', type=str,
                     help='Which dataset?')
 
-args = parser.parse_args()
+
+## choose arguments depending on execution in terminal or in script for testing
+# ! does not work reliably in different environments
+import sys
+if len(sys.argv) > 1:
+  print("Arguments passed via the terminal:")
+  args = parser.parse_args()
+  # To show the results of the given option to screen.
+  print("")
+  for key, value in parser.parse_args()._get_kwargs():
+    print(value, "  ", key)
+else:
+  # parse args if not in terminal, but in script
+  args = parser.parse_args(["--nmt_model", "m2m_100_418M",  #"m2m_100_1.2B", "m2m_100_418M"
+                            "--dataset", "manifesto-8"])
+
 
 NMT_MODEL = args.nmt_model
 DATASET = args.dataset
@@ -125,6 +140,8 @@ print(len(df_test_prep))
 df_train_prep.to_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}_embed_tfidf.csv", index=False)
 df_test_prep.to_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}_embed_tfidf.csv", index=False)
 
+
+print("Script done.")
 
 
 

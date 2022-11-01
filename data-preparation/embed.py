@@ -9,7 +9,22 @@ parser.add_argument('-nmt', '--nmt_model', type=str,
 parser.add_argument('-ds', '--dataset', type=str,
                     help='Which dataset?')
 
-args = parser.parse_args()
+
+## choose arguments depending on execution in terminal or in script for testing
+# ! does not work reliably in different environments
+import sys
+if len(sys.argv) > 1:
+  print("Arguments passed via the terminal:")
+  args = parser.parse_args()
+  # To show the results of the given option to screen.
+  print("")
+  for key, value in parser.parse_args()._get_kwargs():
+    print(value, "  ", key)
+else:
+  # parse args if not in terminal, but in script
+  args = parser.parse_args(["--nmt_model", "m2m_100_418M",  #"m2m_100_1.2B", "m2m_100_418M"
+                            "--dataset", "manifesto-8"])
+
 
 NMT_MODEL = args.nmt_model
 DATASET = args.dataset
@@ -33,6 +48,10 @@ import torch
 df_train = pd.read_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}.csv", sep=",").reset_index(drop=True)   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',
 df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}.csv", sep=",").reset_index(drop=True)   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',#
 
+# deletable texts where translation failed - i.e. produced nan
+# need to reset index, otherwise error from sentence-transformers
+df_train = df_train[~df_train.text_original_trans.isna()].reset_index(drop=True)
+df_test = df_test[~df_test.text_original_trans.isna()].reset_index(drop=True)
 
 ## load model
 # https://sbert.net/docs/pretrained_models.html
@@ -115,6 +134,10 @@ print(sum(pd.isna(df_train_embed["text_original_trans_embed_multi"])))
 
 print(df_test_embed.drop(columns=["parfam", "date", "party", "partyname"]).sample(n=100, random_state=42))
 
+
 #### write to disk
 df_train_embed.to_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}_embed.csv", index=False)
 df_test_embed.to_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}_embed.csv", index=False)
+
+
+print("Script done.")
