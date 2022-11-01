@@ -158,7 +158,7 @@ NMT_MODEL = args.nmt_model
 if "manifesto-8" in DATASET:
   df_cl = pd.read_csv("./data-clean/df_manifesto_all.csv")
   df_train = pd.read_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}_embed_tfidf.csv")
-  df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test_{NMT_MODEL}_trans_embed_tfidf.csv")
+  df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}_embed_tfidf.csv")
 else:
   raise Exception(f"Dataset name not found: {DATASET}")
 
