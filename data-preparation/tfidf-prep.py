@@ -85,6 +85,27 @@ df_train_prep = pd.concat(df_train_prep_lst)
 # test output visually
 test = df_train_prep[["language_iso_trans", "text_original_trans", "text_original_trans_tfidf"]]
 
+# remove duplicates again here ? No, if tfidf preparation introduces duplicates, its an issue of tfidf reduction
+"""test1 = df_train_prep[df_train_prep.text_original_trans_tfidf.duplicated(keep=False)]
+test2 = df_test_prep[df_test_prep.text_original_trans_tfidf.duplicated(keep=False)]
+# also remove random duplicate overlap between train and test
+df_concat = pd.concat([df_train_prep, df_test_prep])
+df_train_prep
+sum(df_train_prep.duplicated(subset=["text_original_trans_tfidf"]))
+sum(df_test_prep.duplicated(subset=["text_original_trans_tfidf"]))
+sum(df_concat.duplicated(subset=["text_original_trans_tfidf"]))"""
+
+# test if introduced empty strings / NAs
+# some empty strings introduced through bad translations
+print(len(df_train_prep))
+print(len(df_test_prep))
+df_train_prep = df_train_prep[~df_train_prep.text_original_trans_tfidf.isna()]
+df_test_prep = df_test_prep[~df_test_prep.text_original_trans_tfidf.isna()]
+df_train_prep = df_train_prep[df_train_prep.text_original_trans_tfidf != ""]
+df_test_prep = df_test_prep[df_test_prep.text_original_trans_tfidf != ""]
+print(len(df_train_prep))
+print(len(df_test_prep))
+
 
 #### write to disk
 df_train_prep.to_csv("./data-clean/df_manifesto_train_trans_embed_tfidf.csv", index=False)
@@ -97,7 +118,7 @@ df_test_prep.to_csv("./data-clean/df_manifesto_test_trans_embed_tfidf.csv", inde
 
 ## test default sklearn tokenizer for Korean
 # https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html
-import re
+"""import re
 import spacy
 
 # standard tokenizer from sklearn
@@ -117,3 +138,4 @@ text_lemmatized = " ".join([str(token.lemma_) for token in nlp(text) if not toke
 print(text_lemmatized)
 print(token_pattern.findall(text_lemmatized))
 
+"""

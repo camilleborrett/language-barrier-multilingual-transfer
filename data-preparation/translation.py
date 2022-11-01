@@ -20,20 +20,38 @@ BATCH_SIZE = 64
 ## load df to translate
 df_train = pd.read_csv("./data-clean/df_manifesto_train.csv", sep=",")   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',
 df_test = pd.read_csv("./data-clean/df_manifesto_test.csv", sep=",")   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',
+
+## drop duplicates
+print(len(df_train))
+print(len(df_test))
+df_train = df_train[~df_train.text_original.duplicated(keep='first')]
+df_test = df_test[~df_test.text_original.duplicated(keep='first')]
+print(len(df_train))
+print(len(df_test))
+
 df_train = df_train.reset_index(drop=True)  # unnecessary nested index
 df_test = df_test.reset_index(drop=True)  # unnecessary nested index
 
-## take sample for testing and to reduce excessive compute
+
+## take sample - do not need all data, since only using sample size of 1k (maybe 10k) to reduce excessive compute
 # train
-df_train = df_train.groupby(by="language_iso").apply(lambda x: x.groupby(by="label_subcat_text").apply(lambda x: x.sample(n=min(len(x), 50), random_state=42)))
-df_train = df_train.reset_index(drop=True)
-print(len(df_train))
-print(df_train.language_iso.value_counts())
+# at least 3 for each subcat to avoid algo issues downstream
+df_train_samp_min_subcat = df_train.groupby(by="language_iso").apply(lambda x: x.groupby(by="label_subcat_text").apply(lambda x: x.sample(n=min(len(x), 3), random_state=42)))
+df_train_samp = df_train.groupby(by="language_iso").apply(lambda x: x.sample(n=min(len(x), 10_000), random_state=42))
+df_train_samp = pd.concat([df_train_samp, df_train_samp_min_subcat])
+df_train_samp = df_train_samp[~df_train_samp.text_original.duplicated(keep='first')]
+df_train_samp = df_train_samp.reset_index(drop=True)
+print(len(df_train_samp))
+print(df_train_samp.language_iso.value_counts())
 # test
-df_test = df_test.groupby(by="language_iso").apply(lambda x: x.groupby(by="label_subcat_text").apply(lambda x: x.sample(n=min(len(x), 50), random_state=42)))
-df_test = df_test.reset_index(drop=True)
-print(len(df_test))
-print(df_test.language_iso.value_counts())
+#df_test = df_test.groupby(by="language_iso").apply(lambda x: x.groupby(by="label_subcat_text").apply(lambda x: x.sample(n=min(len(x), 50), random_state=42)))
+df_test_samp_min_subcat = df_test.groupby(by="language_iso").apply(lambda x: x.groupby(by="label_subcat_text").apply(lambda x: x.sample(n=min(len(x), 3), random_state=42)))
+df_test_samp = df_test.groupby(by="language_iso").apply(lambda x: x.sample(n=min(len(x), 5_000), random_state=42))
+df_test_samp = pd.concat([df_test_samp, df_test_samp_min_subcat])
+df_test_samp = df_test_samp[~df_test_samp.text_original.duplicated(keep='first')]
+df_test_samp = df_test_samp.reset_index(drop=True)
+print(len(df_test_samp))
+print(df_test_samp.language_iso.value_counts())
 
 
 ## translate each language in all other languages
@@ -63,24 +81,24 @@ def translate_all2all(df=None, lang_lst=None, batch_size=8):
 
 
 ## translate test
-df_test_trans = translate_all2all(df=df_test, lang_lst=lang_lst, batch_size=BATCH_SIZE)  # df[df.language.isin(["de", "en"])].sample(n=20, random_state=42)
+df_test_samp_trans = translate_all2all(df=df_test_samp, lang_lst=lang_lst, batch_size=BATCH_SIZE)  # df[df.language.isin(["de", "en"])].sample(n=20, random_state=42)
 # concatenate translated texts with original texts
-print(len(df_test_trans))
-df_test["text_original_trans"] = df_test["text_original"]  #[np.nan] * len(df_test)
-df_test["language_iso_trans"] = df_test["language_iso"]  #[np.nan] * len(df_test)
-df_test_trans_concat = pd.concat([df_test, df_test_trans], axis=0)
+print(len(df_test_samp_trans))
+df_test_samp["text_original_trans"] = df_test_samp["text_original"]  #[np.nan] * len(df_test_samp)
+df_test_samp["language_iso_trans"] = df_test_samp["language_iso"]  #[np.nan] * len(df_test_samp)
+df_test_trans_concat = pd.concat([df_test_samp, df_test_samp_trans], axis=0)
 df_test_trans_concat = df_test_trans_concat.drop_duplicates()
 print(len(df_test_trans_concat))
 # write to disk
 df_test_trans_concat.to_csv("./data-clean/df_manifesto_test_trans.csv", index=False)
 
 ## translate test
-df_train_trans = translate_all2all(df=df_train, lang_lst=lang_lst, batch_size=BATCH_SIZE)  # df[df.language.isin(["de", "en"])].sample(n=20, random_state=42)
+df_train_samp_trans = translate_all2all(df=df_train_samp, lang_lst=lang_lst, batch_size=BATCH_SIZE)  # df[df.language.isin(["de", "en"])].sample(n=20, random_state=42)
 # concatenate translated texts with original texts
-print(len(df_train_trans))
-df_train["text_original_trans"] = df_train["text_original"]  #[np.nan] * len(df_train)
-df_train["language_iso_trans"] = df_train["language_iso"]  #[np.nan] * len(df_train)
-df_train_trans_concat = pd.concat([df_train, df_train_trans], axis=0)
+print(len(df_train_samp_trans))
+df_train_samp["text_original_trans"] = df_train_samp["text_original"]  #[np.nan] * len(df_train_samp)
+df_train_samp["language_iso_trans"] = df_train_samp["language_iso"]  #[np.nan] * len(df_train_samp)
+df_train_trans_concat = pd.concat([df_train_samp, df_train_samp_trans], axis=0)
 df_train_trans_concat = df_train_trans_concat.drop_duplicates()
 print(len(df_train_trans_concat))
 # write to disk
