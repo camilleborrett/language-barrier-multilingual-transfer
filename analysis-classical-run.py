@@ -239,11 +239,11 @@ while len(str(n_sample_string)) <= 4:
     n_sample_string = "0" + str(n_sample_string)
 
 if EXECUTION_TERMINAL == True:
-    hp_study_dic = joblib.load(f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}.pkl")
+    hp_study_dic = joblib.load(f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{DATASET}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}.pkl")
     hp_study_dic = next(iter(hp_study_dic.values()))  # unnest dic
 elif EXECUTION_TERMINAL == False:
     #hp_study_dic = joblib.load(f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_many2many_embeddings-en_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}.pkl")
-    hp_study_dic = joblib.load(f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}.pkl")
+    hp_study_dic = joblib.load(f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{DATASET}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}.pkl")
     hp_study_dic = next(iter(hp_study_dic.values()))  # unnest dic
 
 
