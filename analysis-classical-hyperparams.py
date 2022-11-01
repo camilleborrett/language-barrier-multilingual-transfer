@@ -95,6 +95,8 @@ parser.add_argument('-vectorizer', '--vectorizer', type=str,
 parser.add_argument('-hp_date', '--hyperparam_study_date', type=str,
                     help='Date string to specifiy which hyperparameter run should be selected. e.g. "20220304"')
 
+parser.add_argument('-nmt', '--nmt_model', type=str,
+                    help='Which neural machine translation model to use? "opus-mt", "m2m_100_1.2B", "m2m_100_418M" ')
 
 
 
@@ -119,6 +121,7 @@ elif EXECUTION_TERMINAL == False:
                             "--sample_interval", "300",  #"100", "500", "1000", #"2500", "5000", #"10000",
                             "--method", "classical_ml", "--model", "logistic",  # SVM, logistic
                             "--vectorizer", "embeddings-multi",  # "tfidf", "embeddings-en", "embeddings-multi"
+                            "--nmt_model", "m2m_100_1.2B",  # "m2m_100_1.2B", "m2m_100_418M"
                             "--hyperparam_study_date", "20221026"])
 
 
@@ -131,9 +134,9 @@ CROSS_VALIDATION_REPETITIONS_HYPERPARAM = args.n_cross_val_hyperparam
 
 ### args for both hyperparameter tuning and test runs
 # choose dataset
-DATASET_NAME = args.dataset  # "sentiment-news-econ" "coronanet" "cap-us-court" "cap-sotu" "manifesto-8" "manifesto-military" "manifesto-protectionism" "manifesto-morality" "manifesto-nationalway" "manifesto-44" "manifesto-complex"
+DATASET = args.dataset  # "sentiment-news-econ" "coronanet" "cap-us-court" "cap-sotu" "manifesto-8" "manifesto-military" "manifesto-protectionism" "manifesto-morality" "manifesto-nationalway" "manifesto-44" "manifesto-complex"
 LANGUAGES = args.languages
-LANGUAGES = LANGUAGES[:4]
+LANGUAGES = LANGUAGES
 LANGUAGE_TRAIN = args.language_train
 LANGUAGE_ANCHOR = args.language_anchor
 AUGMENTATION = args.augmentation_nmt
@@ -146,21 +149,22 @@ METHOD = args.method  # "standard_dl", "nli", "classical_ml"
 MODEL_NAME = args.model  # "SVM"
 
 HYPERPARAM_STUDY_DATE = args.hyperparam_study_date  #"20220304"
+NMT_MODEL = args.nmt_model
 
 
 
 
 
 # ## Load data
-if "manifesto-8" in DATASET_NAME:
+if "manifesto-8" in DATASET:
   df_cl = pd.read_csv("./data-clean/df_manifesto_all.csv")
-  df_train = pd.read_csv("./data-clean/df_manifesto_train_trans_embed_tfidf.csv")
-  df_test = pd.read_csv("./data-clean/df_manifesto_test_trans_embed_tfidf.csv")
+  df_train = pd.read_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}_embed_tfidf.csv")
+  df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test_{NMT_MODEL}_trans_embed_tfidf.csv")
 else:
-  raise Exception(f"Dataset name not found: {DATASET_NAME}")
+  raise Exception(f"Dataset name not found: {DATASET}")
 
 ## special preparation of manifesto simple dataset - chose 8 or 57 labels
-if DATASET_NAME == "manifesto-8":
+if DATASET == "manifesto-8":
   df_cl["label_text"] = df_cl["label_domain_text"]
   df_cl["label"] = pd.factorize(df_cl["label_text"], sort=True)[0]
   df_train["label_text"] = df_train["label_domain_text"]
@@ -168,9 +172,9 @@ if DATASET_NAME == "manifesto-8":
   df_test["label_text"] = df_test["label_domain_text"]
   df_test["label"] = pd.factorize(df_test["label_text"], sort=True)[0]
 else:
-    Exception(f"Dataset not defined: {DATASET_NAME}")
+    Exception(f"Dataset not defined: {DATASET}")
 
-print(DATASET_NAME)
+print(DATASET)
 
 
 
@@ -200,11 +204,11 @@ print("Final sample size intervals: ", N_SAMPLE_DEV)"""
 
 
 LABEL_TEXT_ALPHABETICAL = np.sort(df_cl.label_text.unique())
-TRAINING_DIRECTORY = f"results/{DATASET_NAME}"
+TRAINING_DIRECTORY = f"results/{DATASET}"
 
 
 ## data checks
-print(DATASET_NAME, "\n")
+print(DATASET, "\n")
 # verify that numeric label is in alphabetical order of label_text
 labels_num_via_numeric = df_cl[~df_cl.label_text.duplicated(keep="first")].sort_values("label_text").label.tolist()  # label num via labels: get labels from data when ordering label text alphabetically
 labels_num_via_text = pd.factorize(np.sort(df_cl.label_text.unique()))[0]  # label num via label_text: create label numeric via label text
@@ -235,7 +239,7 @@ from helpers import select_data_for_scenario_hp_search, select_data_for_scenario
 #if CARBON_TRACKING:
 #  from codecarbon import OfflineEmissionsTracker
 #  tracker = OfflineEmissionsTracker(country_iso_code="NLD",  log_level='warning', measure_power_secs=300,  #output_dir=TRAINING_DIRECTORY
-#                                    project_name=f"{DATASET_NAME}-{MODEL_NAME.split('/')[-1]}")
+#                                    project_name=f"{DATASET}-{MODEL_NAME.split('/')[-1]}")
 #  tracker.start()
 
 
@@ -443,18 +447,18 @@ for n_sample in N_SAMPLE_DEV:
       print(f"Run for language {lang} finished.")
 
       if (AUGMENTATION in ["no-nmt-single", "one2many", "many2anchor"]) or ((AUGMENTATION in ["no-nmt-many", "many2many"]) and (VECTORIZER in ["embeddings-multi"])) or ((AUGMENTATION in ["one2anchor"]) and (VECTORIZER in ["tfidf", "embeddings-en"])):
-          print("Study params: ", LANGUAGES, f" {AUGMENTATION}_{VECTORIZER}_{MODEL_NAME.split('/')[-1]}_{DATASET_NAME}_{n_sample}")
+          print("Study params: ", LANGUAGES, f" {AUGMENTATION}_{VECTORIZER}_{MODEL_NAME.split('/')[-1]}_{DATASET}_{n_sample}")
           print("Best study value: ", study.best_value)
-          hp_study_dic_lang = {"language": LANGUAGES, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "method": METHOD, "n_sample": n_sample, "dataset": DATASET_NAME, "algorithm": MODEL_NAME, "optuna_study": study}
+          hp_study_dic_lang = {"language": LANGUAGES, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "method": METHOD, "n_sample": n_sample, "dataset": DATASET, "algorithm": MODEL_NAME, "nmt_model": NMT_MODEL, "optuna_study": study}
           hp_study_dic_scenario.update(hp_study_dic_lang)
           break  # these runs do not need different hp-searches for different lang
       elif ((AUGMENTATION in ["no-nmt-many", "many2many"]) and (VECTORIZER != "embeddings-multi")) or ((AUGMENTATION in ["one2anchor"]) and (VECTORIZER in ["embeddings-multi"])):
-          print("Study params: ", lang, f" {AUGMENTATION}_{VECTORIZER}_{MODEL_NAME.split('/')[-1]}_{DATASET_NAME}_{n_sample}")
+          print("Study params: ", lang, f" {AUGMENTATION}_{VECTORIZER}_{MODEL_NAME.split('/')[-1]}_{DATASET}_{n_sample}")
           print("Best study value: ", study.best_value)
-          hp_study_dic_lang = {lang: {"language": lang, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "method": METHOD, "n_sample": n_sample, "dataset": DATASET_NAME, "algorithm": MODEL_NAME, "optuna_study": study} }
+          hp_study_dic_lang = {lang: {"language": lang, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "method": METHOD, "n_sample": n_sample, "dataset": DATASET, "algorithm": MODEL_NAME, "nmt_model": NMT_MODEL, "optuna_study": study} }
           hp_study_dic_scenario.update(hp_study_dic_lang)
 
-    hp_study_dic_scenario = {f"{AUGMENTATION}_{VECTORIZER}_{MODEL_NAME.split('/')[-1]}_{DATASET_NAME}_{n_sample}": hp_study_dic_scenario}
+    hp_study_dic_scenario = {f"{AUGMENTATION}_{VECTORIZER}_{MODEL_NAME.split('/')[-1]}_{DATASET}_{n_sample}_{NMT_MODEL}": hp_study_dic_scenario}
     hp_study_dic.update(hp_study_dic_scenario)
 
     # harmonise length of n_sample string (always 5 characters)
@@ -463,16 +467,9 @@ for n_sample in N_SAMPLE_DEV:
 
     ## save studies
     if EXECUTION_TERMINAL == True:
-      #if VECTORIZER == "tfidf":
-      joblib.dump(hp_study_dic_scenario, f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample}samp_{HYPERPARAM_STUDY_DATE}.pkl")
-      #elif VECTORIZER == "embeddings":
-      #  joblib.dump(hp_study_dic_scenario, f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample}samp_{HYPERPARAM_STUDY_DATE}.pkl")
-
+      joblib.dump(hp_study_dic_scenario, f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample}samp_{DATASET}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}.pkl")
     elif EXECUTION_TERMINAL == False:
-      #if VECTORIZER == "tfidf":
-      joblib.dump(hp_study_dic_scenario, f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample}samp_{HYPERPARAM_STUDY_DATE}_t.pkl")
-      #elif VECTORIZER == "embeddings":
-      #  joblib.dump(hp_study_dic_scenario, f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample}samp_{HYPERPARAM_STUDY_DATE}_t.pkl")
+      joblib.dump(hp_study_dic_scenario, f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample}samp_{DATASET}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}_t.pkl")
 
 ## stop carbon tracker
 #if CARBON_TRACKING:

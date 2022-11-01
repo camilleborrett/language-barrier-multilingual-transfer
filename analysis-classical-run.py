@@ -91,7 +91,8 @@ parser.add_argument('-vectorizer', '--vectorizer', type=str,
                     help='How to vectorize text. Options: "tfidf" or "embeddings-en" or "embeddings-multi"')
 parser.add_argument('-hp_date', '--hyperparam_study_date', type=str,
                     help='Date string to specifiy which hyperparameter run should be selected. e.g. "20220304"')
-
+parser.add_argument('-nmt', '--nmt_model', type=str,
+                    help='Which neural machine translation model to use? "opus-mt", "m2m_100_1.2B", "m2m_100_418M" ')
 
 
 
@@ -116,6 +117,7 @@ elif EXECUTION_TERMINAL == False:
                             "--sample_interval", "300",  #"100", "500", "1000", #"2500", "5000", #"10000",
                             "--method", "classical_ml", "--model", "logistic",  # SVM, logistic
                             "--vectorizer", "embeddings-multi",  # "tfidf", "embeddings-en", "embeddings-multi"
+                            "--nmt_model", "m2m_100_1.2B",  #"m2m_100_1.2B", "m2m_100_418M"
                             "--hyperparam_study_date", "20221026"])
 
 
@@ -125,9 +127,9 @@ ZEROSHOT = args.zeroshot
 
 ### args for both hyperparameter tuning and test runs
 # choose dataset
-DATASET_NAME = args.dataset  # "sentiment-news-econ" "coronanet" "cap-us-court" "cap-sotu" "manifesto-8" "manifesto-military" "manifesto-protectionism" "manifesto-morality" "manifesto-nationalway" "manifesto-44" "manifesto-complex"
+DATASET = args.dataset  # "sentiment-news-econ" "coronanet" "cap-us-court" "cap-sotu" "manifesto-8" "manifesto-military" "manifesto-protectionism" "manifesto-morality" "manifesto-nationalway" "manifesto-44" "manifesto-complex"
 LANGUAGES = args.languages
-LANGUAGES = LANGUAGES[:4]
+LANGUAGES = LANGUAGES
 LANGUAGE_TRAIN = args.language_train
 LANGUAGE_ANCHOR = args.language_anchor
 AUGMENTATION = args.augmentation_nmt
@@ -140,21 +142,22 @@ METHOD = args.method  # "standard_dl", "nli", "classical_ml"
 MODEL_NAME = args.model  # "SVM"
 
 HYPERPARAM_STUDY_DATE = args.hyperparam_study_date  #"20220304"
+NMT_MODEL = args.nmt_model
 
 
 
 
 
 # ## Load data
-if "manifesto-8" in DATASET_NAME:
+if "manifesto-8" in DATASET:
   df_cl = pd.read_csv("./data-clean/df_manifesto_all.csv")
-  df_train = pd.read_csv("./data-clean/df_manifesto_train_trans_embed_tfidf.csv")
-  df_test = pd.read_csv("./data-clean/df_manifesto_test_trans_embed_tfidf.csv")
+  df_train = pd.read_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}_embed_tfidf.csv")
+  df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test_{NMT_MODEL}_trans_embed_tfidf.csv")
 else:
-  raise Exception(f"Dataset name not found: {DATASET_NAME}")
+  raise Exception(f"Dataset name not found: {DATASET}")
 
 ## special preparation of manifesto simple dataset - chose 8 or 57 labels
-if DATASET_NAME == "manifesto-8":
+if DATASET == "manifesto-8":
   df_cl["label_text"] = df_cl["label_domain_text"]
   df_cl["label"] = pd.factorize(df_cl["label_text"], sort=True)[0]
   df_train["label_text"] = df_train["label_domain_text"]
@@ -162,9 +165,9 @@ if DATASET_NAME == "manifesto-8":
   df_test["label_text"] = df_test["label_domain_text"]
   df_test["label"] = pd.factorize(df_test["label_text"], sort=True)[0]
 else:
-    raise Exception(f"Dataset not defined: {DATASET_NAME}")
+    raise Exception(f"Dataset not defined: {DATASET}")
 
-print(DATASET_NAME)
+print(DATASET)
 
 
 
@@ -195,11 +198,11 @@ print("Final sample size intervals: ", N_SAMPLE_DEV)"""
 
 
 LABEL_TEXT_ALPHABETICAL = np.sort(df_cl.label_text.unique())
-TRAINING_DIRECTORY = f"results/{DATASET_NAME}"
+TRAINING_DIRECTORY = f"results/{DATASET}"
 
 
 ## data checks
-print(DATASET_NAME, "\n")
+print(DATASET, "\n")
 # verify that numeric label is in alphabetical order of label_text
 labels_num_via_numeric = df_cl[~df_cl.label_text.duplicated(keep="first")].sort_values("label_text").label.tolist()  # label num via labels: get labels from data when ordering label text alphabetically
 labels_num_via_text = pd.factorize(np.sort(df_cl.label_text.unique()))[0]  # label num via label_text: create label numeric via label text
@@ -382,7 +385,7 @@ for lang, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterat
   accuracy_balanced_std = np.std(accuracy_balanced_lst)
   # add aggregate metrics to overall experiment dict
   metrics_mean = {"f1_macro_mean": f1_macro_mean, "f1_micro_mean": f1_micro_mean, "accuracy_balanced_mean": accuracy_balanced_mean, "f1_macro_std": f1_macro_std, "f1_micro_std": f1_micro_std, "accuracy_balanced_std": accuracy_balanced_std}
-  experiment_details_dic_lang.update({"metrics_mean": metrics_mean, "dataset": DATASET_NAME, "n_train_total": len(df_train_scenario_samp), "n_classes": len(df_cl.label_text.unique()), "train_eval_time_per_model": t_total})
+  experiment_details_dic_lang.update({"metrics_mean": metrics_mean, "dataset": DATASET, "n_train_total": len(df_train_scenario_samp), "n_classes": len(df_cl.label_text.unique()), "train_eval_time_per_model": t_total})
 
 
   # update of overall experiment dic
@@ -399,8 +402,8 @@ for lang, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterat
 
 ### summary dictionary across all languages
 experiment_summary_dic = {"experiment_summary":
-     {"dataset": DATASET_NAME, "model_name": MODEL_NAME, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "lang_anchor": LANGUAGE_ANCHOR, "lang_train": LANGUAGE_TRAIN, "lang_all": LANGUAGES, "method": METHOD, "sample_size": N_SAMPLE_DEV}
- }
+     {"dataset": DATASET, "model_name": MODEL_NAME, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "lang_anchor": LANGUAGE_ANCHOR, "lang_train": LANGUAGE_TRAIN, "lang_all": LANGUAGES, "method": METHOD, "sample_size": N_SAMPLE_DEV, "nmt_model": NMT_MODEL}
+}
 
 # calculate averages across all languages
 f1_macro_lst_mean = []
@@ -441,9 +444,9 @@ experiment_details_dic_summary = {**experiment_details_dic, **experiment_summary
 
 
 if EXECUTION_TERMINAL == True:
-  joblib.dump(experiment_details_dic_summary, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}.pkl")
+  joblib.dump(experiment_details_dic_summary, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{DATASET}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}.pkl")
 elif EXECUTION_TERMINAL == False:
-  joblib.dump(experiment_details_dic_summary, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}_t.pkl")
+  joblib.dump(experiment_details_dic_summary, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{DATASET}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}_t.pkl")
 
 
 
