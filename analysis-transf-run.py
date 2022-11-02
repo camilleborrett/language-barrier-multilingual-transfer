@@ -346,13 +346,13 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
         if n_language == 1:
             #model_dic.update({f"trainer_{random_seed_sample}": copy.deepcopy(trainer)})
             # saving models locally, because copy.deepcopy leads to error: "TypeError: cannot pickle 'torch._C.Generator' object"  - seems like I cannot deepcopy the trainer object
-            model_temp_path_local = f"./{TRAINING_DIRECTORY}/model_temp_{random_seed_sample}/"
+            model_temp_path_local = f"./{TRAINING_DIRECTORY}/model_temp_{DATASET}_{NMT_MODEL}_{random_seed_sample}/"
             trainer.save_model(output_dir=model_temp_path_local)
     # otherwise, re-use previous classifier
     else:
         print("! Skipping training of new classifier, because can reuse previous one !")
         #trainer = model_dic[f"trainer_{random_seed_sample}"]
-        model_temp_path_local = f"./{TRAINING_DIRECTORY}/model_temp_{random_seed_sample}/"
+        model_temp_path_local = f"./{TRAINING_DIRECTORY}/model_temp_{DATASET}_{NMT_MODEL}_{random_seed_sample}/"
         from transformers import AutoModelForSequenceClassification
         trainer = create_trainer(model=AutoModelForSequenceClassification.from_pretrained(model_temp_path_local), tokenizer=tokenizer, encoded_dataset=encoded_dataset, train_args=train_args,
                                  method=METHOD, label_text_alphabetical=LABEL_TEXT_ALPHABETICAL)
