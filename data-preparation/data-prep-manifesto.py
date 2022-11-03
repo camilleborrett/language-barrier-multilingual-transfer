@@ -162,7 +162,6 @@ text_following = []
 for name_group, df_group in df_cl.groupby(by=["manifesto_id"], sort=False):  # over each speech to avoid merging sentences accross manifestos
     n_unique_doc += 1
     df_group = df_group.reset_index(drop=True)  # reset index to enable iterating over index
-    #text_ext = []
     for i in range(len(df_group["text"])):
         if i > 0 and i < len(df_group["text"]) - 1:
             text_preceding.append(df_group["text"][i-1])
@@ -175,7 +174,6 @@ for name_group, df_group in df_cl.groupby(by=["manifesto_id"], sort=False):  # o
             text_following.append("")
         else:
           raise Exception("Issue: condition not in code")
-    #text_ext2_all.append(text_ext)
     n_unique_doc_lst.append([n_unique_doc] * len(df_group["text"]))
 n_unique_doc_lst = [item for sublist in n_unique_doc_lst for item in sublist]
 
@@ -273,8 +271,8 @@ print(os.getcwd())
 ### write
 ## datasets used in first paper
 df_cl.to_csv("./data-clean/df_manifesto_all.csv")
-df_train.to_csv("./data-clean/df_manifesto_train.csv")
-df_test.to_csv("./data-clean/df_manifesto_test.csv")
+df_train.to_csv("./data-clean/df_manifesto-8_train.csv")
+df_test.to_csv("./data-clean/df_manifesto-8_test.csv")
 
 """
 df_cl_military.to_csv("./data-clean/df_manifesto_military_cl.csv")

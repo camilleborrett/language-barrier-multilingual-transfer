@@ -48,10 +48,11 @@ df_exp = pd.DataFrame(experiment_dic_cols)
 # make variables categorical to enable custom sorting order
 df_exp["vectorizer"] = pd.Categorical(df_exp['vectorizer'], ["tfidf", "embeddings-en", "embeddings-multi"])
 df_exp["augmentation"] = pd.Categorical(df_exp['augmentation'], ["no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"])
-df_exp["model_name"] = pd.Categorical(df_exp['model_name'], ["logistic", "microsoft/MiniLM-L12-H384-uncased", "microsoft/Multilingual-MiniLM-L12-H384"])
-df_exp = df_exp.sort_values(by=["model_name", "vectorizer", "augmentation"])
+df_exp["model_name"] = pd.Categorical(df_exp['model_name'], ["logistic", "microsoft/deberta-v3-base", "microsoft/mdeberta-v3-base", "microsoft/MiniLM-L12-H384-uncased", "microsoft/Multilingual-MiniLM-L12-H384"])
+df_exp["nmt_model"] = pd.Categorical(df_exp['nmt_model'], ["m2m_100_418M", "m2m_100_1.2B"])
+df_exp = df_exp.sort_values(by=["model_name", "vectorizer", "augmentation", "nmt_model"])
 # removing less interesting columns
-df_exp = df_exp[['model_name', 'vectorizer', 'augmentation', 'sample_size',
+df_exp = df_exp[['model_name', 'vectorizer', 'augmentation', 'sample_size', 'nmt_model',
                  'f1_macro_mean', 'f1_micro_mean', #'accuracy_balanced_mean',
                  'f1_macro_mean_cross_lang_std', 'f1_micro_mean_cross_lang_std', #'accuracy_balanced_mean_cross_lang_std',
                  ]]

@@ -1,11 +1,11 @@
 #!/bin/bash
 # Set batch job requirements
-#SBATCH -t 25:00:00
+#SBATCH -t 20:00:00
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=m.laurer@vu.nl
-#SBATCH --job-name=gpu1
+#SBATCH --job-name=gpu-fix
 #SBATCH --ntasks=32
 
 # Loading modules for Snellius
@@ -37,7 +37,7 @@ n_cross_val_final=3
 model='transformer'
 method='standard_dl'
 dataset='manifesto-8'
-nmt_model='m2m_100_1.2B'  # m2m_100_418M, m2m_100_1.2B
+nmt_model='m2m_100_418M'  # m2m_100_418M, m2m_100_1.2B
 
 
 
@@ -53,14 +53,16 @@ do
     python analysis-transf-run.py --n_cross_val_final $n_cross_val_final \
            --dataset $dataset --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" --nmt_model $nmt_model \
            --augmentation_nmt $translation --model $model --vectorizer $vectorizer --method $method \
-           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/manifesto-8/logs/run-$model-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs.txt
+           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/manifesto-8/logs/run-$model-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs-fix.txt
     echo Final run done for scenario: $translation $vectorizer
   done
 done
 
 ## scenario loop
-translation_lst='one2anchor no-nmt-many many2anchor many2many'
-vectorizer_lst='embeddings-en embeddings-multi'
+#translation_lst='one2anchor no-nmt-many many2anchor many2many'
+#vectorizer_lst='embeddings-en embeddings-multi'
+translation_lst='many2many'
+vectorizer_lst='embeddings-multi'
 
 echo Starting training loop
 for translation in $translation_lst
@@ -70,7 +72,7 @@ do
     python analysis-transf-run.py --n_cross_val_final $n_cross_val_final \
            --dataset $dataset --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" --nmt_model $nmt_model \
            --augmentation_nmt $translation --model $model --vectorizer $vectorizer --method $method \
-           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/manifesto-8/logs/run-$model-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs.txt
+           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/manifesto-8/logs/run-$model-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs-fix.txt
     echo Final run done for scenario: $translation $vectorizer
   done
 done

@@ -261,13 +261,13 @@ def optuna_objective(trial, lang=None, n_sample=None, df_train=None, df=None):  
       # https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html
       hyperparams_vectorizer = {
           'ngram_range': trial.suggest_categorical("ngram_range", [(1, 2), (1, 3), (1, 6)]),
-          'max_df': trial.suggest_categorical("max_df", [0.95, 0.9, 0.8]),
-          'min_df': trial.suggest_categorical("min_df", [0.01, 0.03, 0.05]),
+          'max_df': trial.suggest_categorical("max_df", [1.0, 0.9, 0.8]),  # new runs for 'no-nmt-many many2many' + tfidf - others [0.95, 0.9, 0.8]  # can lead to error "ValueError: After pruning, no terms remain. Try a lower min_df or a higher max_df."
+          'min_df': trial.suggest_categorical("min_df", [1, 0.01, 0.03]),  # new runs for 'no-nmt-many many2many' + tfidf - others [0.01, 0.03, 0.05]
           'analyzer': trial.suggest_categorical("analyzer", ["word", "char_wb"]),  # could be good for languages like Korean where longer sequences of characters without a space seem to represent compound words
       }
       vectorizer_sklearn = TfidfVectorizer(lowercase=True, stop_words=None, norm="l2", use_idf=True, smooth_idf=True, **hyperparams_vectorizer)  # ngram_range=(1,2), max_df=0.9, min_df=0.02, token_pattern="(?u)\b\w\w+\b"
   elif "embeddings" in VECTORIZER:
-      vectorizer_sklearn = ["asdufzasudfzgasudfg"]
+      vectorizer_sklearn = ["somerandomstringtopreventerrorsfromoptuna"]
       hyperparams_vectorizer = {}
 
   # SVM  # https://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html

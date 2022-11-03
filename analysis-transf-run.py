@@ -245,7 +245,15 @@ while len(str(n_sample_string)) <= 4:
 
 ## running with standard good hyperparameters
 #N_SAMPLE_TEST = N_SAMPLE_DEV * len(LANGUAGES)
-HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 60, 'seed': 42, 'per_device_train_batch_size': 16, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 128}]
+#HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 60, 'seed': 42, 'per_device_train_batch_size': 16, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 128}]
+if (AUGMENTATION == "many2many") and (VECTORIZER == "embeddings-multi"):
+    HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 10, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 160}]
+elif (AUGMENTATION == "one2many") and (VECTORIZER == "embeddings-multi"):
+    HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 40, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 160}]
+else:
+    HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 60, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 160}]
+
+
 HYPER_PARAMS_LST = HYPER_PARAMS_LST * len(LANGUAGES)
 print(HYPER_PARAMS_LST)
 
@@ -346,13 +354,13 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
         if n_language == 1:
             #model_dic.update({f"trainer_{random_seed_sample}": copy.deepcopy(trainer)})
             # saving models locally, because copy.deepcopy leads to error: "TypeError: cannot pickle 'torch._C.Generator' object"  - seems like I cannot deepcopy the trainer object
-            model_temp_path_local = f"./{TRAINING_DIRECTORY}/model_temp_{DATASET}_{NMT_MODEL}_{random_seed_sample}/"
+            model_temp_path_local = f"./{TRAINING_DIRECTORY}/model_temp_{DATASET}_{NMT_MODEL}_{random_seed_sample}-fix/"
             trainer.save_model(output_dir=model_temp_path_local)
     # otherwise, re-use previous classifier
     else:
         print("! Skipping training of new classifier, because can reuse previous one !")
         #trainer = model_dic[f"trainer_{random_seed_sample}"]
-        model_temp_path_local = f"./{TRAINING_DIRECTORY}/model_temp_{DATASET}_{NMT_MODEL}_{random_seed_sample}/"
+        model_temp_path_local = f"./{TRAINING_DIRECTORY}/model_temp_{DATASET}_{NMT_MODEL}_{random_seed_sample}-fix/"
         from transformers import AutoModelForSequenceClassification
         trainer = create_trainer(model=AutoModelForSequenceClassification.from_pretrained(model_temp_path_local), tokenizer=tokenizer, encoded_dataset=encoded_dataset, train_args=train_args,
                                  method=METHOD, label_text_alphabetical=LABEL_TEXT_ALPHABETICAL)
@@ -454,9 +462,9 @@ experiment_details_dic_summary = {**experiment_details_dic, **experiment_summary
 
 
 if EXECUTION_TERMINAL == True:
-  joblib.dump(experiment_details_dic_summary, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{DATASET}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}.pkl")
+  joblib.dump(experiment_details_dic_summary, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{DATASET}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}-fix.pkl")
 elif EXECUTION_TERMINAL == False:
-  joblib.dump(experiment_details_dic_summary, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{DATASET}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}_t.pkl")
+  joblib.dump(experiment_details_dic_summary, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{DATASET}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}_t-fix.pkl")
 
 
 
