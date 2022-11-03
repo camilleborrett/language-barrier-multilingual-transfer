@@ -9,6 +9,7 @@ joblib~=1.1.0
 tqdm~=4.64.0
 optuna~=3.0
 EasyNMT~=2.0.2
+datasets~=2.6
 
 # Snellius A100 has CUDA 11.4
 #torch==1.11.0  # torch installation on Snellius only seems to work via terminal/batch script
