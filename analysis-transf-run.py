@@ -152,8 +152,6 @@ NMT_MODEL = args.nmt_model
 
 
 
-
-
 # ## Load data
 if "manifesto-8" in DATASET:
   df_cl = pd.read_csv("./data-clean/df_manifesto_all.csv")
@@ -243,16 +241,18 @@ n_sample_string = N_SAMPLE_DEV[0]
 while len(str(n_sample_string)) <= 4:
     n_sample_string = "0" + str(n_sample_string)
 
-## running with standard good hyperparameters
+## running with mostly standard good hyperparameters
+# ! dynamically adjusting n_epochs in loop below
+HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 50, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 200}]
+
 #N_SAMPLE_TEST = N_SAMPLE_DEV * len(LANGUAGES)
 #HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 60, 'seed': 42, 'per_device_train_batch_size': 16, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 128}]
-if (AUGMENTATION == "many2many") and (VECTORIZER == "embeddings-multi"):
-    HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 10, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 160}]
-elif (AUGMENTATION == "one2many") and (VECTORIZER == "embeddings-multi"):
-    HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 40, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 160}]
-else:
-    HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 60, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 160}]
-
+#if (AUGMENTATION == "many2many") and (VECTORIZER == "embeddings-multi"):
+#    HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 10, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 160}]
+#elif (AUGMENTATION == "one2many") and (VECTORIZER == "embeddings-multi"):
+#    HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 40, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 160}]
+#else:
+#    HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 60, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 160}]
 
 HYPER_PARAMS_LST = HYPER_PARAMS_LST * len(LANGUAGES)
 print(HYPER_PARAMS_LST)
@@ -332,6 +332,23 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
     clean_memory()
     model, tokenizer = load_model_tokenizer(model_name=MODEL_NAME, method=METHOD, label_text_alphabetical=LABEL_TEXT_ALPHABETICAL)
     encoded_dataset = tokenize_datasets(df_train_samp=df_train_scenario_samp_augment_textcol, df_test=df_test_scenario_textcol, tokenizer=tokenizer, method=METHOD, max_length=None)
+
+    # dynamically adapt epochs
+    ## automatically calculate roughly adequate epochs for number of data points
+    max_steps = 7_000  # value chosen to lead to roughly 45 epochs with 5k n_data, 23 with 10k, then decrease epochs
+    batch_size = 32
+    max_epochs = 50  # 50  # good value from NLI paper experience for aroung 500 - 5k data
+    n_data = 500_000  # len(df_train)
+    n_epochs = 0
+    n_steps = 0
+    while (n_epochs < max_epochs) and (n_steps < max_steps):
+        n_epochs += 1
+        n_steps += n_data / batch_size  # = steps_one_epoch
+    print("Epochs: ", n_epochs)
+    print("Steps: ", n_steps)
+
+    hyperparams.update({"num_train_epochs": n_epochs})
+    experiment_details_dic_lang.update({"hyperparams": hyperparams})
 
     train_args = set_train_args(hyperparams_dic=hyperparams, training_directory=TRAINING_DIRECTORY, disable_tqdm=False, evaluation_strategy="no", fp16=fp16_bool)  # could also vary the seed here, but just also taking 42 for simplicity
     #trainer = create_trainer(model=model, tokenizer=tokenizer, encoded_dataset=encoded_dataset, train_args=train_args,
