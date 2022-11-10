@@ -38,12 +38,19 @@ import tqdm
 SEED_GLOBAL = 42
 
 ## load dataset to process
-df = pd.read_csv(f"./data-clean/df_{DATASET}_trans_{NMT_MODEL}_embed.zip", index_col="idx")
+df = pd.read_csv(f"./data-clean/df_{DATASET}_trans_{NMT_MODEL}_embed.zip")  #, index_col="idx"
 
 
+# select different columns for downstream processing depending on dataset
 # for some reason, some translations are NaN
-df["text_original_trans"] = df.text_original_trans.fillna("[TRANS_FAIL]")
-
+if "manifesto-8_samp" in DATASET:
+    df["text_original_trans"] = df.text_original_trans.fillna("[TRANS_FAIL]")
+elif DATASET == "pimpo_samp":
+    # overwrite this column to make downstream code work and use best column for TFIDF. reversing this down below
+    df["text_original_trans_preserved"] = df["text_original_trans"].fillna("[TRANS_FAIL]")
+    df["text_original_trans"] = df["text_trans_concat"].fillna("[TRANS_FAIL]")
+else:
+    raise Exception(f"Dataset {DATASET} not defined")
 
 ## functions for lemmatization and stopword removal
 def lemmatize_and_stopwords(text_lst):
@@ -100,6 +107,9 @@ df_prep["text_original_trans_tfidf"] = df_prep.text_original_trans_tfidf.fillna(
 df_prep["text_original_trans_tfidf"] = ["[TFIDF_FAIL]" if text == "" else text for text in df_prep.text_original_trans_tfidf]
 # don't delete, maintain same length to avoid downstream issues
 
+if DATASET == "pimpo_samp":
+    df_prep = df_prep.drop(columns=["text_original_trans"]) # dropping the overwritten column from above and renaming the original column
+    df_prep = df_prep.rename(columns={"text_original_trans_tfidf": "text_trans_concat_tfidf", "text_original_trans_preserved": "text_original_trans"})
 
 #### write to disk
 df_prep.to_csv(f"./data-clean/df_{DATASET}_trans_{NMT_MODEL}_embed_tfidf.zip",

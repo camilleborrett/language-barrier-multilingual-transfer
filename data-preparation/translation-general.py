@@ -15,6 +15,8 @@ parser.add_argument('-lang', '--language_target', type=str, #nargs='+',
                     help='Language to translate to')
 parser.add_argument('-txt', '--text_col', type=str,
                     help='name of text column')
+parser.add_argument('-m_length', '--max_length', type=int,
+                    help='max token length for translation')
 
 ## choose arguments depending on execution in terminal or in script for testing
 # ! does not work reliably in different environments
@@ -37,6 +39,7 @@ BATCH_SIZE = args.batch_size
 DATASET = args.dataset
 LANGUAGE_TARGET = args.language_target
 TEXT_COL = args.text_col
+MAX_LENGTH = args.max_length
 
 
 ## load packages
@@ -56,8 +59,10 @@ def clean_memory():
 
 
 ## load df to translate
-df = pd.read_csv(f"./data-clean/{DATASET}.zip", sep=",")   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',
+df = pd.read_csv(f"./data-clean/df_{DATASET}.zip", sep=",")   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',
 
+## for testing
+df = df.groupby(by="language_iso").apply(lambda x: x.sample(n=min(len(x), 50), random_state=42))
 
 
 ## drop duplicates
@@ -104,7 +109,7 @@ def translate_many2target(df=None, target_lang=None, batch_size=8, text_col=None
       print(f"Translating {source_lang} to {target_lang}")
       df_step2 = df[df.language_iso == source_lang].copy(deep=True)
       print(f"    Translating {source_lang} to {target_lang}. {len(df_step2)} texts for this subset.")
-      df_step2[f"{text_col}_trans"] = model.translate(df_step2[text_col].fillna('').tolist(), source_lang=source_lang, target_lang=target_lang, show_progress_bar=True, beam_size=5, batch_size=batch_size, perform_sentence_splitting=False)
+      df_step2[f"{text_col}_trans"] = model.translate(df_step2[text_col].fillna('').tolist(), source_lang=source_lang, target_lang=target_lang, show_progress_bar=True, beam_size=5, batch_size=batch_size, perform_sentence_splitting=False, max_length=MAX_LENGTH)
       df_step_lst.append(df_step2)
       clean_memory()
     df_trans = pd.concat(df_step_lst)
@@ -117,9 +122,9 @@ def translate_many2target_context(df=None, target_lang=None, batch_size=8, text_
       print(f"Translating {source_lang} to {target_lang}")
       df_step2 = df[df.language_iso == source_lang].copy(deep=True)
       print(f"    Translating {source_lang} to {target_lang}. {len(df_step2)} texts for this subset.")
-      df_step2["text_original_trans"] = model.translate(df_step2["text_original"].fillna('').tolist(), source_lang=source_lang, target_lang=target_lang, show_progress_bar=True, beam_size=5, batch_size=batch_size, perform_sentence_splitting=False)
-      df_step2["text_preceding_trans"] = model.translate(df_step2["text_preceding"].fillna('').tolist(), source_lang=source_lang, target_lang=target_lang, show_progress_bar=True, beam_size=5, batch_size=batch_size, perform_sentence_splitting=False)
-      df_step2["text_following_trans"] = model.translate(df_step2["text_following"].fillna('').tolist(), source_lang=source_lang, target_lang=target_lang, show_progress_bar=True, beam_size=5, batch_size=batch_size, perform_sentence_splitting=False)
+      df_step2["text_original_trans"] = model.translate(df_step2["text_original"].fillna('').tolist(), source_lang=source_lang, target_lang=target_lang, show_progress_bar=True, beam_size=5, batch_size=batch_size, perform_sentence_splitting=False, max_length=MAX_LENGTH)
+      df_step2["text_preceding_trans"] = model.translate(df_step2["text_preceding"].fillna('').tolist(), source_lang=source_lang, target_lang=target_lang, show_progress_bar=True, beam_size=5, batch_size=batch_size, perform_sentence_splitting=False, max_length=MAX_LENGTH)
+      df_step2["text_following_trans"] = model.translate(df_step2["text_following"].fillna('').tolist(), source_lang=source_lang, target_lang=target_lang, show_progress_bar=True, beam_size=5, batch_size=batch_size, perform_sentence_splitting=False, max_length=MAX_LENGTH)
       #df_step2["language_iso_trans"] = [target_lang] * len(df_step2)
       df_step_lst.append(df_step2)
       clean_memory()
@@ -129,7 +134,7 @@ def translate_many2target_context(df=None, target_lang=None, batch_size=8, text_
     return df_trans
 
 
-if DATASET == "df_pimpo_samp":
+if DATASET == "pimpo_samp":
     df = translate_many2target_context(df=df, target_lang=LANGUAGE_TARGET, batch_size=BATCH_SIZE, text_col=None)
 #elif DATASET == "dfwithonecol":
 else:
@@ -142,8 +147,8 @@ df["language_iso_trans"] = [LANGUAGE_TARGET] * len(df)
 #df = df.drop_duplicates()
 
 # write to disk
-compression_options = dict(method='zip', archive_name=f'{DATASET}_trans_{LANGUAGE_TARGET}_{NMT_MODEL}.csv')
-df.to_csv(f'./data-clean/{DATASET}_trans_{LANGUAGE_TARGET}_{NMT_MODEL}.zip', compression=compression_options, index=False)
+compression_options = dict(method='zip', archive_name=f'{DATASET}_trans_{NMT_MODEL}.csv')
+df.to_csv(f'./data-clean/df_{DATASET}_trans_{NMT_MODEL}.zip', compression=compression_options, index=False)
 #df.to_csv(f"./data-clean/{DATASET}_trans_{LANGUAGE_TARGET}_{NMT_MODEL}.csv", index=False)
 
 

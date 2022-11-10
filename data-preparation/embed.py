@@ -69,19 +69,34 @@ model_en.to(device)
 
 ### multilingual embeddings - simply on text_original
 # embedding the translated column here to test if the slight variations from translated texts are useful for augmentation
-embeddings_multi = model_multiling.encode(df.text_original_trans, convert_to_tensor=False)
-# add to df
-df["text_original_trans_embed_multi"] = embeddings_multi.tolist()
+if DATASET == "pimpo_samp":
+    # for pimpo, the original texts are multilingual
+    df["text_concat"] = df.text_preceding + " " + df.text_original + " " + df.text_following
+    embeddings_multi = model_multiling.encode(df["text_concat"], convert_to_tensor=False)
+    df["text_concat_embed_multi"] = embeddings_multi.tolist()
+elif "manifesto-8_samp" in DATASET:
+    # not using concat texts for manifesto for simplicity
+    embeddings_multi = model_multiling.encode(df.text_original_trans, convert_to_tensor=False)
+    df["text_original_trans_embed_multi"] = embeddings_multi.tolist()
+else:
+    raise Exception(f"Dataset {DATASET} not defined")
 
 ### English embeddings - embed only english (translated) texts with English model
-text_en = df[df.language_iso_trans == "en"].text_original_trans
-text_en_index = df[df.language_iso_trans == "en"].text_original_trans.index  # saving index for merge below
-# embed
-embeddings_en = model_en.encode(text_en.reset_index(drop=True), convert_to_tensor=False)  # have to reset index, encode method throws error otherwise
-
-# merge subset of English embeddings with full df via index
-embeddings_en_series = pd.Series(index=text_en_index, data=embeddings_en.tolist()).rename("text_original_trans_embed_en")
-df_embed = df.merge(embeddings_en_series, how='left', left_index=True, right_index=True)
+if DATASET == "pimpo_samp":
+    # for pimpo, all translated texts are already only in English
+    df["text_trans_concat"] = df.text_preceding_trans + " " + df.text_original_trans + " " + df.text_following_trans
+    embeddings_en = model_en.encode(df["text_trans_concat"].reset_index(drop=True), convert_to_tensor=False)  # have to reset index, encode method throws error otherwise
+    df["text_trans_concat_embed_en"] = embeddings_en.tolist()
+    # harmonize final df name
+    df_embed = df
+elif "manifesto-8_samp" in DATASET:
+    text_en = df[df.language_iso_trans == "en"].text_original_trans
+    text_en_index = df[df.language_iso_trans == "en"].text_original_trans.index  # saving index for merge below
+    # embed
+    embeddings_en = model_en.encode(text_en.reset_index(drop=True), convert_to_tensor=False)  # have to reset index, encode method throws error otherwise
+    # merge subset of English embeddings with full df via index
+    embeddings_en_series = pd.Series(index=text_en_index, data=embeddings_en.tolist()).rename("text_original_trans_embed_en")
+    df_embed = df.merge(embeddings_en_series, how='left', left_index=True, right_index=True)
 
 
 ## tests df
@@ -90,7 +105,8 @@ print(df.language_iso_trans.value_counts())
 print(len(df_embed))
 print(len(df))
 
-# English
+# tests only work for manifesto-8_samp
+"""# English
 print(len(df_embed["text_original_trans_embed_en"]))
 
 print(sum(pd.isna(df_embed["text_original_trans_embed_en"])))
@@ -101,9 +117,9 @@ print(len(df_embed["text_original_trans"]))
 
 # Multi
 print(len(df_embed["text_original_trans_embed_multi"]))
-print(sum(pd.isna(df_embed["text_original_trans_embed_multi"])))
+print(sum(pd.isna(df_embed["text_original_trans_embed_multi"])))"""
 
-print(df_embed.drop(columns=["parfam", "date", "party", "partyname"]).sample(n=100, random_state=42))
+print(df_embed.sample(n=5, random_state=42))
 
 
 #### write to disk

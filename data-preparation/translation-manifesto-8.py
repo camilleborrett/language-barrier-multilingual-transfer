@@ -10,7 +10,8 @@ parser.add_argument('-b', '--batch_size', type=int,
                     help='batch_size for translations')
 parser.add_argument('-ds', '--dataset', type=str,
                     help='Which dataset?')
-
+parser.add_argument('-m_length', '--max_length', type=int,
+                    help='max token length for translation')
 
 ## choose arguments depending on execution in terminal or in script for testing
 # ! does not work reliably in different environments
@@ -31,6 +32,7 @@ else:
 NMT_MODEL = args.nmt_model
 BATCH_SIZE = args.batch_size
 DATASET = args.dataset
+MAX_LENGTH = args.max_length
 
 
 ## load packages
@@ -55,6 +57,12 @@ def clean_memory():
 df_train = pd.read_csv(f"./data-clean/df_{DATASET}_train.zip", sep=",")   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',
 df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test.zip", sep=",")   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',
 
+## for testing
+df_train = df_train.groupby(by="language_iso").apply(lambda x: x.sample(n=min(len(x), 10), random_state=42))
+df_test = df_test.groupby(by="language_iso").apply(lambda x: x.sample(n=min(len(x), 10), random_state=42))
+
+
+
 df_train = df_train.reset_index(drop=True)  # unnecessary nested index
 df_test = df_test.reset_index(drop=True)  # unnecessary nested index
 
@@ -77,7 +85,7 @@ def translate_all2all(df=None, lang_lst=None, batch_size=8):
     for lang_source in tqdm.tqdm(np.sort(df_step.language_iso.unique()).tolist(), desc="Per source language loop", leave=True, position=2):
       df_step2 = df_step[df_step.language_iso == lang_source].copy(deep=True)
       print(f"    Translating {lang_source} to {lang_target}. {len(df_step2)} texts for this subset.")
-      df_step2["text_original_trans"] = model.translate(df_step2["text_original"].tolist(), source_lang=lang_source, target_lang=lang_target, show_progress_bar=False, beam_size=5, batch_size=batch_size, perform_sentence_splitting=False)
+      df_step2["text_original_trans"] = model.translate(df_step2["text_original"].tolist(), source_lang=lang_source, target_lang=lang_target, show_progress_bar=False, beam_size=5, batch_size=batch_size, perform_sentence_splitting=False, max_length=MAX_LENGTH)
       df_step2["language_iso_trans"] = [lang_target] * len(df_step2)
       df_step_lst.append(df_step2)
       clean_memory()

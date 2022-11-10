@@ -1,6 +1,6 @@
 #!/bin/bash
 #Set batch job requirements
-#SBATCH -t 4:00:00
+#SBATCH -t 1:00:00
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -18,15 +18,16 @@ pip3 install torch torchvision torchaudio --extra-index-url https://download.pyt
 pip install -r requirements.txt
 
 # general translation in one language direction
-dataset='df_pimpo_samp'
+dataset='pimpo_samp'
 study_date='221110'
 nmt_model='m2m_100_418M'  # m2m_100_418M, m2m_100_1.2B
 batch_size=48  # 16, 64
+max_length=160
 language_target='en'
 text_col=''
 
 # translate
-python ./data-preparation/translation-general.py --dataset $dataset --language $language_target --nmt_model $nmt_model --batch_size $batch_size  &> ./data-preparation/logs-translate-$dataset-$nmt_model-$study_date.txt
+python ./data-preparation/translation-general.py --dataset $dataset --language $language_target --nmt_model $nmt_model --batch_size $batch_size --max_length $max_length  &> ./data-preparation/logs-translate-$dataset-$nmt_model-$study_date.txt
 
 # embed
 python ./data-preparation/embed.py --dataset $dataset --nmt_model $nmt_model  &> ./data-preparation/logs-embed-$dataset-$nmt_model-$study_date.txt
