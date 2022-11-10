@@ -21,6 +21,7 @@ np.random.seed(SEED_GLOBAL)
 
 #set wd
 print(os.getcwd())
+os.chdir("/Users/moritzlaurer/Dropbox/PhD/Papers/multilingual/multilingual-repo/")
 
 
 
@@ -40,6 +41,10 @@ print(len(df))
 # pos_corpus "Comment: Gives the position of the quasi-sentence within each document in the Manifesto Corpus. It can be used to merge the original verbatim of the quasi-sentences to the dataset. It is missing for 234 quasi-sentences from the Finnish National Coalition in 2007 and one quasi-sentence from the German Greens in 2013. For the crowd coding we have worked with the beta version of the Manifesto Corpus. The respective quasi- sentences were in the beta version, but are not in the publicly available Manifesto Corpus, because they were classified as text in margin by the Manifesto Project. The R-Script provided on the website makes it possible to add the verbatim from these quasi-sentences nonetheless."
 df_cl = df.rename(columns={"content": "text"}).copy(deep=True)
 
+# clean noisy strings
+df_cl["text"] = df_cl.text.str.replace("\xa0", "")
+
+
 ## exploring multilingual data
 country_map = {
     11: "swe", 12: "nor", 13: "dnk", 14: "fin", 22: "nld",
@@ -56,7 +61,7 @@ df_cl["country_iso"] = [country_map[country_id] for country_id in df_cl.country]
     53: "eng", 61: "eng", 62: "fra", 63: "eng", 64: "eng"  # manually checked Canada, only has fra texts
 }"""
 languages_map = {
-    11: "sv", 12: "nn", 13: "da", 14: "fi", 22: "nl",
+    11: "sv", 12: "no", 13: "da", 14: "fi", 22: "nl",  # norwegian is actually "nn", but m2m paper calls it "no"
     33: "es", 41: "de", 42: "de", 43: "de",  # manually checked Switzerland, only has deu texts
     53: "en", 61: "en", 62: "fr", 63: "en", 64: "en"  # manually checked Canada, only has fra texts
 }
@@ -102,10 +107,9 @@ parfam_map = {10: "ECO", 20: "LEF", 30: "SOC", 40: "LIB", 50: "CHR", 60: "CON", 
 df_cl["parfam"] = df_cl["parfam"].astype(int)
 df_cl["parfam_text"] = df_cl.parfam.map(parfam_map)
 
-
-## ! delete parfams not used in pimpo paper
-parfam_paper_lst = ["ECO", "ETH", "AGR", "LEF", "CHR", "LIB", "SOC", "CON", "NAT"]
-df_cl = df_cl[df_cl.parfam_text.isin(parfam_paper_lst)]
+## delete parfams not used in pimpo paper? No, leave in, can be relevant for validity tests beyond party families
+#parfam_paper_lst = ["ECO", "ETH", "AGR", "LEF", "CHR", "LIB", "SOC", "CON", "NAT"]
+#df_cl = df_cl[df_cl.parfam_text.isin(parfam_paper_lst)]
 
 df_cl["parfam_text"].value_counts()
 
@@ -156,7 +160,7 @@ for i, row in df_cl.iterrows():
 df_cl["label_text"] = label_text_gold_lst
 df_cl["label"] = pd.factorize(df_cl["label_text"], sort=True)[0]
 
-print(df_cl["label_text"].value_counts())
+print(df_cl["label_text"].value_counts(normalize=True))
 
 
 
@@ -193,13 +197,67 @@ df_cl["doc_id"] = n_unique_doc_lst  # column with unique doc identifier
 
 
 
+### testing if other languages hidden in data:
+import requests, tqdm, sys
+# unnencessarily complicated function to load language identification model
+def http_get(url, path):
+    # Downloads a URL to a given path on disc
+    if os.path.dirname(path) != '':
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+    req = requests.get(url, stream=True)
+    if req.status_code != 200:
+        print("Exception when trying to download {}. Response {}".format(url, req.status_code), file=sys.stderr)
+        req.raise_for_status()
+        return
+    download_filepath = path+"_part"
+    with open(download_filepath, "wb") as file_binary:
+        content_length = req.headers.get('Content-Length')
+        total = int(content_length) if content_length is not None else None
+        progress = tqdm.tqdm(unit="B", total=total, unit_scale=True)
+        for chunk in req.iter_content(chunk_size=1024):
+            if chunk: # filter out keep-alive new chunks
+                progress.update(len(chunk))
+                file_binary.write(chunk)
+    os.rename(download_filepath, path)
+    progress.close()
+
+## identify languages
+import fasttext
+fasttext.FastText.eprint = lambda x: None   #Silence useless warning: https://github.com/facebookresearch/fastText/issues/1067
+# two lang id models available: https://fasttext.cc/docs/en/language-identification.html
+model_path = os.path.join(os.getcwd(), 'lid.176.bin')  # 'lid.176.ftz'
+if not os.path.exists(model_path):
+    http_get('https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin', model_path)  # 'https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.ftz'
+model_lang_id = fasttext.load_model(model_path)
+
+# do language detection on concatenated texts to increase accuracy
+text_context = df_cl.text_preceding + " " + df_cl.text_original + " " + df_cl.text_following
+#lang_id_lst = [_fasttext_lang_id.predict(text.lower().replace("\r\n", " ").replace("\n", " ").strip())[0][0].split('__')[-1] if text != None else None for text in df_cl["text"]]
+lang_id_lst = [model_lang_id.predict(text.lower().replace("\r\n", " ").replace("\n", " ").strip())[0][0].split('__')[-1] if text != None else None for text in text_context]
+# add language column
+df_cl["language_iso_fasttext"] = lang_id_lst
+#print(df_cl["language_iso_fasttext"].value_counts())
+#print(df_cl["language_iso_fasttext"].unique())
+# manually check if there is a country where too many predicted languages do not correspond to expected language - not the case, fasttext makes some errors
+df_language_pred_per_country = df_cl.groupby(by="country_iso", group_keys=True, as_index=True).apply(lambda x: x["language_iso_fasttext"].value_counts()).reset_index().rename(columns={"language_iso_fasttext": "counts", "level_1": "language_iso_fasttext"})
+df_fasttext_vs_countryiso = df_cl[df_cl.language_iso != df_cl.language_iso_fasttext]#[["text_original", "text_following", "country_iso", "language_iso", "language_iso_fasttext"]]
+# seems like most languages correctly attributed. fasttext makes some errors.
+# ! some Gaellic in Irish/English data, 64 texts; seems like some swedish in finnish data
+# can clean remove gaellic texts:
+df_gaelic = df_cl[(df_cl.language_iso_fasttext == "ga")]
+df_cl = df_cl[~(df_cl.language_iso_fasttext == "ga")]
+# Swedish texts from Finland are from Swedish People's party of Finland - change language_iso to swedish for them, fasttext is correct, country heuristic is false
+language_iso_cl = [lang_iso_fasttext if (lang_iso_country == "fi" and lang_iso_fasttext == "sv") else lang_iso_country for lang_iso_country, lang_iso_fasttext in zip(df_cl.language_iso, df_cl.language_iso_fasttext)]
+df_cl["language_iso"] = language_iso_cl
+
+
 ## select relevant columns
-df_cl = df_cl[["label", "label_text", 'country_iso', 'language_iso', "doc_id", # 'gs_1r', 'gs_2r', 'date', 'party', 'pos_corpus'
+df_cl = df_cl[["label", "label_text", 'country_iso', 'language_iso', "doc_id", #  'gs_1r', 'gs_2r', 'party', 'pos_corpus'
                #'gs_answer_1r', 'gs_answer_2q', 'gs_answer_3q', # 'num_codings_1r', 'num_codings_2r'
-              'selection', 'certainty_selection', 'topic', 'certainty_topic',
-              'direction', 'certainty_direction', 'rn', 'cmp_code',  # 'manually_coded'
               'text_original', "text_preceding", "text_following",
-               "partyname", "partyabbrev", "parfam", "parfam_text"
+               'selection', 'certainty_selection', 'topic', 'certainty_topic',
+               'direction', 'certainty_direction', 'rn', 'cmp_code',  # 'manually_coded'
+               "partyname", "partyabbrev", "parfam", "parfam_text", "date", "language_iso_fasttext"
                ]]
 
 
@@ -214,12 +272,39 @@ inspection_parfam_dic = {}
 for parfam in df_cl.parfam_text.unique():
     inspection_parfam_dic.update({parfam: df_cl[df_cl.parfam_text == parfam].label_text.value_counts()})
 df_inspection_parfam = pd.DataFrame(inspection_parfam_dic)
+# country
+inspection_country_dic = {}
+for country_iso in df_cl.country_iso.unique():
+    inspection_country_dic.update({country_iso: df_cl[df_cl.country_iso == country_iso].label_text.value_counts()})
+df_inspection_country = pd.DataFrame(inspection_country_dic)
+
+# these tables still include the gaelic Irish texts for English and potential swedish texts as finnish
+df_inspection_lang.to_excel("./appendix/df_pimpo_distribution_lang.xlsx", index=True)
+df_inspection_parfam.to_excel("./appendix/df_pimpo_distribution_parfam.xlsx", index=True)
+df_inspection_country.to_excel("./appendix/df_pimpo_distribution_country.xlsx", index=True)
+
+# write compressed csv
+file_name = "df_pimpo_all"
+compression_options = dict(method='zip', archive_name=f'{file_name}.csv')
+df_cl.to_csv(f'./data-clean/{file_name}.zip', compression=compression_options, index=False)
+#df_cl.to_csv("./data-clean/df_pimpo_all.csv", index=False)
 
 
-df_cl.to_csv("./data-clean/df_pimpo_all.csv", index=False)
+
+### sample with less no-topic for faster inference
+n_no_topic = 100_000
+df_cl_samp = df_cl.groupby(by="label_text", as_index=False, group_keys=False).apply(lambda x: x.sample(n=min(n_no_topic, len(x)), random_state=SEED_GLOBAL) if x.label_text.iloc[0] == "no_topic" else x)
+
+print(df_cl_samp.label_text.value_counts())
+
+# write compressed csv
+file_name = "df_pimpo_samp"
+compression_options = dict(method='zip', archive_name=f'{file_name}.csv')
+df_cl_samp.to_csv(f'./data-clean/{file_name}.zip', compression=compression_options, index=False)
+#df_cl_samp.to_csv("./data-clean/df_pimpo_samp.csv", index=False)
 
 
-
+print("Script done.")
 
 
 

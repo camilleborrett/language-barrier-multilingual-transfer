@@ -22,14 +22,37 @@ pip install -r requirements.txt
 
 # for local run
 #bash ./batch-scripts/batch-gpu.bash
+# for manual commandline tests
+python analysis-pimpo.py --languages "en" --method "nli" --hypothesis "long" --vectorizer "en" --task 'immigration' --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-nli-en-long-immigration-en.txt
+python analysis-pimpo.py --languages "en" "de" --method "nli" --hypothesis "long" --vectorizer "en" --task 'immigration' --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-nli-en-long-immigration-en-de.txt
+python analysis-pimpo.py --languages "en" "de" "sv" "fr" --method "nli" --hypothesis "long" --vectorizer "en" --task 'immigration' --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-nli-en-long-immigration-en-de-sv-fr.txt
 
-python analysis-pimpo.py --languages "en" --task "immigration" --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-immi-en.txt
-python analysis-pimpo.py --languages "en" "de" --task "immigration" --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-immi-en-de.txt
-python analysis-pimpo.py --languages "en" "de" "sv" "fr" --task "immigration" --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-immi-en-de-sv-fr.txt
+python analysis-pimpo.py --languages "en" --method "nli" --hypothesis "long" --vectorizer "multi" --task 'immigration' --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-nli-multi-long-immigration-en.txt
+python analysis-pimpo.py --languages "en" "de" --method "nli" --hypothesis "long" --vectorizer "multi" --task 'immigration' --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-nli-multi-long-immigration-en-de.txt
+python analysis-pimpo.py --languages "en" "de" "sv" "fr" --method "nli" --hypothesis "long" --vectorizer "multi" --task 'immigration' --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-nli-multi-long-immigration-en-de-sv-fr.txt
 
-python analysis-pimpo.py --languages "en" --task "integration" --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-integ-en.txt
-python analysis-pimpo.py --languages "en" "de" --task "integration" --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-integ-en-de.txt
-python analysis-pimpo.py --languages "en" "de" "sv" "fr" --task "integration" --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-integ-en-de-sv-fr.txt
+python analysis-pimpo.py --languages "en" --method "standard_dl" --hypothesis "long" --vectorizer "en" --task 'immigration' --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-standard_dl-en-long-immigration-en.txt
+python analysis-pimpo.py --languages "en" "de" --method "standard_dl" --hypothesis "long" --vectorizer "en" --task 'immigration' --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-standard_dl-en-long-immigration-en-de.txt
+python analysis-pimpo.py --languages "en" "de" "sv" "fr" --method "standard_dl" --hypothesis "long" --vectorizer "en" --task 'immigration' --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-standard_dl-en-long-immigration-en-de-sv-fr.txt
+
+python analysis-pimpo.py --languages "en" --method "standard_dl" --hypothesis "long" --vectorizer "multi" --task 'immigration' --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-standard_dl-multi-long-immigration-en.txt
+python analysis-pimpo.py --languages "en" "de" --method "standard_dl" --hypothesis "long" --vectorizer "multi" --task 'immigration' --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-standard_dl-multi-long-immigration-en-de.txt
+python analysis-pimpo.py --languages "en" "de" "sv" "fr" --method "standard_dl" --hypothesis "long" --vectorizer "multi" --task 'immigration' --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-standard_dl-multi-long-immigration-en-de-sv-fr.txt
+
+
+task='immigration'
+method='nli'
+python analysis-pimpo.py --languages "en" --method $method --task $task --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-$task-$method-en.txt
+python analysis-pimpo.py --languages "en" "de" --method $method --task $task --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-$task-$method-en-de.txt
+python analysis-pimpo.py --languages "en" "de" "nl" --method $method --task $task --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-$task-$method-en-de-nl.txt
+python analysis-pimpo.py --languages "en" "de" "sv" "fr" --method $method --task $task --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-$task-$method-en-de-sv-fr.txt
+
+task='integration'
+method='nli'
+python analysis-pimpo.py --languages "en" --method $method --task $task --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-$task-$method-en.txt
+python analysis-pimpo.py --languages "en" "de" --method $method --task $task --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-$task-$method-en-de.txt
+python analysis-pimpo.py --languages "en" "de" "nl" --method $method --task $task --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-$task-$method-en-de-nl.txt
+python analysis-pimpo.py --languages "en" "de" "sv" "fr" --method $method --task $task --sample 500 --max_epochs 50 --study_date 221103  &> ./results/pimpo/logs/pimpo-logs-$task-$method-en-de-sv-fr.txt
 
 
 echo Entire script done

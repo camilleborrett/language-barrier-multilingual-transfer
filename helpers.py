@@ -340,15 +340,15 @@ def data_preparation(random_seed=42, hypothesis_template=None, hypo_label_dic=No
 
 
 
-def load_model_tokenizer(model_name=None, method=None, label_text_alphabetical=None):
+def load_model_tokenizer(model_name=None, method=None, label_text_alphabetical=None, model_max_length=512):
     if method == "nli":
-        tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True, model_max_length=512);
+        tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True, model_max_length=model_max_length);
         model = AutoModelForSequenceClassification.from_pretrained(model_name); 
     elif method == "nsp":
-        tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True, model_max_length=512);
+        tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True, model_max_length=model_max_length);
         model = AutoModelForNextSentencePrediction.from_pretrained(model_name);
     elif method == "standard_dl":
-        tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True, model_max_length=512);
+        tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True, model_max_length=model_max_length);
         # define config. label text to label id in alphabetical order
         label2id = dict(zip(np.sort(label_text_alphabetical), np.sort(pd.factorize(label_text_alphabetical, sort=True)[0]).tolist())) # .astype(int).tolist()
         id2label = dict(zip(np.sort(pd.factorize(label_text_alphabetical, sort=True)[0]).tolist(), np.sort(label_text_alphabetical)))

@@ -38,17 +38,11 @@ import tqdm
 SEED_GLOBAL = 42
 
 ## load dataset to process
-if "manifesto-8" in DATASET:
-  #df_cl = pd.read_csv("./data-clean/df_manifesto_all.csv", index_col="idx")
-  df_train = pd.read_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}_embed.csv", index_col="idx")
-  df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}_embed.csv", index_col="idx")
-else:
-  raise Exception(f"Dataset name not found: {DATASET}")
+df = pd.read_csv(f"./data-clean/df_{DATASET}_trans_{NMT_MODEL}_embed.zip", index_col="idx")
+
 
 # for some reason, some translations are NaN
-# hopefully corrected when final run with bigger translation model
-df_train = df_train[~df_train.text_original_trans.isna()]
-df_test = df_test[~df_test.text_original_trans.isna()]
+df["text_original_trans"] = df.text_original_trans.fillna("[TRANS_FAIL]")
 
 
 ## functions for lemmatization and stopword removal
@@ -79,69 +73,41 @@ spacy_models_dic = {"ko": "ko_core_news_md", "en": "en_core_web_md", "ru": "ru_c
                     "tr": "turkish-stopwords"  # https://github.com/explosion/spaCy/tree/master/spacy/lang/tr
 }
 
-## prepare test set
-df_test_prep_lst = []
-for group_name, group_df in tqdm.tqdm(df_test.groupby(by="language_iso_trans", as_index=False, group_keys=False)):
-    np.random.seed(SEED_GLOBAL)
-    print(group_name)
-    #group_df = group_df.sample(n=5, random_state=42)  # for testing
-    if group_name != "tr":
-        nlp = spacy.load(spacy_models_dic[group_name])
-        group_df["text_original_trans_tfidf"] = lemmatize_and_stopwords(group_df.text_original_trans)
-        df_test_prep_lst.append(group_df)
-    elif group_name == "tr":
-        stopwords_tr = pd.read_json("https://raw.githubusercontent.com/stopwords-iso/stopwords-tr/master/stopwords-tr.json")
-        group_df["text_original_trans_tfidf"] = remove_stopwords(group_df.text_original_trans, stopword_lst=stopwords_tr)
-        df_test_prep_lst.append(group_df)
-df_test_prep = pd.concat(df_test_prep_lst)
 
 ## prepare train set
-df_train_prep_lst = []
-for group_name, group_df in tqdm.tqdm(df_train.groupby(by="language_iso_trans", as_index=False, group_keys=False)):
+df_prep_lst = []
+for group_name, group_df in tqdm.tqdm(df.groupby(by="language_iso_trans", as_index=False, group_keys=False)):
     np.random.seed(SEED_GLOBAL)
     print(group_name)
     #group_df = group_df.sample(n=5, random_state=42)  # for testing
     if group_name != "tr":
         nlp = spacy.load(spacy_models_dic[group_name])
         group_df["text_original_trans_tfidf"] = lemmatize_and_stopwords(group_df.text_original_trans)
-        df_train_prep_lst.append(group_df)
+        df_prep_lst.append(group_df)
     elif group_name == "tr":
         stopwords_tr = pd.read_json("https://raw.githubusercontent.com/stopwords-iso/stopwords-tr/master/stopwords-tr.json")
         group_df["text_original_trans_tfidf"] = remove_stopwords(group_df.text_original_trans, stopword_lst=stopwords_tr)
-        df_train_prep_lst.append(group_df)
-df_train_prep = pd.concat(df_train_prep_lst)
+        df_prep_lst.append(group_df)
+df_prep = pd.concat(df_prep_lst)
 
 # test output visually
-test = df_train_prep[["language_iso_trans", "text_original_trans", "text_original_trans_tfidf"]]
+test = df_prep[["language_iso_trans", "text_original_trans", "text_original_trans_tfidf"]]
 
-# remove duplicates again here ? No, if tfidf preparation introduces duplicates, its an issue of tfidf reduction
-"""test1 = df_train_prep[df_train_prep.text_original_trans_tfidf.duplicated(keep=False)]
-test2 = df_test_prep[df_test_prep.text_original_trans_tfidf.duplicated(keep=False)]
-# also remove random duplicate overlap between train and test
-df_concat = pd.concat([df_train_prep, df_test_prep])
-df_train_prep
-sum(df_train_prep.duplicated(subset=["text_original_trans_tfidf"]))
-sum(df_test_prep.duplicated(subset=["text_original_trans_tfidf"]))
-sum(df_concat.duplicated(subset=["text_original_trans_tfidf"]))"""
 
-# test if introduced empty strings / NAs
-# some empty strings introduced through bad translations
-print(len(df_train_prep))
-print(len(df_test_prep))
-df_train_prep = df_train_prep[~df_train_prep.text_original_trans_tfidf.isna()]
-df_test_prep = df_test_prep[~df_test_prep.text_original_trans_tfidf.isna()]
-df_train_prep = df_train_prep[df_train_prep.text_original_trans_tfidf != ""]
-df_test_prep = df_test_prep[df_test_prep.text_original_trans_tfidf != ""]
-print(len(df_train_prep))
-print(len(df_test_prep))
+# test if introduced empty NAs
+df_prep["text_original_trans_tfidf"] = df_prep.text_original_trans_tfidf.fillna("[TFIDF_FAIL]")
+# catch empty strings  # some empty strings introduced through bad translations
+df_prep["text_original_trans_tfidf"] = ["[TFIDF_FAIL]" if text == "" else text for text in df_prep.text_original_trans_tfidf]
+# don't delete, maintain same length to avoid downstream issues
 
 
 #### write to disk
-df_train_prep.to_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}_embed_tfidf.csv", index=False)
-df_test_prep.to_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}_embed_tfidf.csv", index=False)
+df_prep.to_csv(f"./data-clean/df_{DATASET}_trans_{NMT_MODEL}_embed_tfidf.zip",
+                compression={"method": "zip", "archive_name": f"df_{DATASET}_trans_{NMT_MODEL}_embed_tfidf.csv"}, index=False)
 
 
 print("Script done.")
+
 
 
 
@@ -170,3 +136,4 @@ print(text_lemmatized)
 print(token_pattern.findall(text_lemmatized))
 
 """
+

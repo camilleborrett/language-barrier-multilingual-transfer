@@ -37,6 +37,8 @@ df_cl = df.copy(deep=True)
 #### explore languages
 print(df_cl.language_iso.value_counts())
 print(df_cl.language_iso.unique())
+print(len(df_cl.language_iso.unique()))
+
 
 ## only work with selected languages
 language_filter = ["en", "de", "es", "fr", "ko", "tr", "ru"]  # "ja"  excluding japanese because too little data. only 2 manifestos with 474 cleaned sents, only 7 of 8 domains
@@ -132,19 +134,18 @@ assert len(df_cl.label_domain_text.value_counts()) == 8
 
 
 
-## !!! decide on label level to use for downstream analysis
-df_cl["label_text"] = df_cl["label_domain_text"]
-df_cl["label"] = pd.factorize(df_cl["label_text"], sort=True)[0]
-
+## decide on label level to use for downstream analysis
+#df_cl["label_text"] = df_cl["label_domain_text"]
+#df_cl["label"] = pd.factorize(df_cl["label_text"], sort=True)[0]
 # test that label and label_text correspond
-assert len(df_cl[df_cl.label_text.isna()]) == 0  # each label_cap2 could be mapped to a label text. no label text is missing.
-assert all(np.sort(df_cl["label_text"].value_counts().tolist()) == np.sort(df_cl["label"].value_counts().tolist()))
+#assert len(df_cl[df_cl.label_text.isna()]) == 0  # each label_cap2 could be mapped to a label text. no label text is missing.
+#assert all(np.sort(df_cl["label_text"].value_counts().tolist()) == np.sort(df_cl["label"].value_counts().tolist()))
 
 # final update
 df_cl = df_cl.reset_index(drop=True)
 df_cl.index = df_cl.index.rename("idx")  # name index. provides proper column name in dataset object downstream
 
-print(df_cl.label_text.value_counts(), "\n")
+print(df_cl.label_domain_text.value_counts(), "\n")
 print(df_cl.country_name.value_counts())
 print(df_cl.language_iso.value_counts())
 
@@ -188,52 +189,20 @@ df_cl["doc_id"] = n_unique_doc_lst  # column with unique doc identifier
 
 ## remove and reorder columns
 df_cl.columns
-df_cl = df_cl[["label", "label_text", "language_iso", "text_original", "text_preceding", "text_following",
+df_cl = df_cl[["language_iso", "text_original", "text_preceding", "text_following",  #"label", "label_text",
                "manifesto_id", "sentence_id", "doc_id", "country_iso", "date", "party", "partyname", "parfam",
                "cmp_code_v4", "label_domain_text", "label_subcat_text"]]
 
 
 
 
-## test how many sentences have same type as preceding / following sentence
-test_lst = []
-test_lst2 = []
-test_lst_after = []
-for name_df, group_df in df_cl.groupby(by="doc_id", group_keys=False, as_index=False, sort=False):
-  for i in range(len(group_df)):
-    # one preceding text
-    if i == 0:
-      continue
-    elif group_df["label_text"].iloc[i] == group_df["label_text"].iloc[i-1]:
-      test_lst.append("same_before")
-    else:
-      #test_lst.append(f"different label before: {group_df['label_text'].iloc[i-1]}")
-      test_lst.append(f"different label before")
-    # for following texts
-    if i >= len(group_df)-1:
-      continue
-    elif group_df["label_text"].iloc[i] == group_df["label_text"].iloc[i+1]:
-      test_lst_after.append("same_after")
-    else:
-      #test_lst_after.append(f"different label after: {group_df['label_text'].iloc[i+1]}")
-      test_lst_after.append(f"different label after")
 
-print(pd.Series(test_lst).value_counts(normalize=True), "\n")
-print(pd.Series(test_lst_after).value_counts(normalize=True), "\n")
-# SOTU: 75 % of sentences have the same type as the preceeding sentence. also 75% for following sentence. #  concatenating preceding/following leads to data leakage? 25% different class which can confuse the model, its's random and same for all models
-# Manifesto: 57 % of sentences have same type as preceding sentence (57 class). # including preceding sentence should not provide illegitimate advantage to classifier
-
-
-
-
-
-
-#### Train-Test-Split
+##### Train-Test-Split
 from sklearn.model_selection import train_test_split
 
 ## stratify by two variables: lang & subcat_text  # https://stackoverflow.com/questions/45516424/sklearn-train-test-split-on-pandas-stratify-by-multiple-columns
 df_cl['stratify_by'] = df_cl['language_iso'].astype(str) + "_" + df_cl['label_subcat_text'].astype(str)
-# delete sub-cat for languages when it has only very few examples. otherwise testing is not possible
+# delete sub-cat for languages when it has only very few examples. otherwise testing with train-test split is not possible
 label_subcat_lang_count = df_cl.groupby(by="language_iso").apply(lambda x: x.label_subcat_text.value_counts())
 min_number_subcat_texts = 2
 low_n_lang_cat = [lang_label_tuple[0] + "_" + lang_label_tuple[1] for lang_label_tuple in label_subcat_lang_count[label_subcat_lang_count < min_number_subcat_texts].index]
@@ -246,11 +215,11 @@ df_train, df_test = train_test_split(df_cl, test_size=0.30, random_state=SEED_GL
 print(f"Overall train size: {len(df_train)}")
 #print(f"Overall test size: {len(df_test)} - sampled test size: {len(df_test_samp)}")
 print(f"Overall test size: {len(df_test)}")
+
+## train-test distribution
 df_train_test_distribution = pd.DataFrame([df_train.label_domain_text.value_counts().rename("train"), df_test.label_domain_text.value_counts().rename("test"),
                                            #df_test_samp.label_domain_text.value_counts().rename("test_sample"),
                                            df_cl.label_domain_text.value_counts().rename("all")]).transpose()
-df_train_test_distribution
-
 ## label distribution by language
 df_distribution_lang_domain = []
 for key_language, value_df in df_cl.groupby(by="language_iso", group_keys=True, as_index=True, sort=False, axis=0):
@@ -263,16 +232,45 @@ for key_language, value_df in df_cl.groupby(by="language_iso", group_keys=True, 
 df_distribution_lang_subcat = pd.concat(df_distribution_lang_subcat, axis=1)
 
 
+#### manifesto-8 sample
+## take sample - do not need all data, since only using sample size of 1k (maybe 10k) to reduce excessive compute
+# train
+# at least 3 for each subcat to avoid algo issues downstream
+df_train_samp_min_subcat = df_train.groupby(by="language_iso").apply(lambda x: x.groupby(by="label_subcat_text").apply(lambda x: x.sample(n=min(len(x), 3), random_state=42)))
+df_train_samp = df_train.groupby(by="language_iso").apply(lambda x: x.sample(n=min(len(x), 5_000), random_state=42))
+df_train_samp = pd.concat([df_train_samp, df_train_samp_min_subcat])
+df_train_samp = df_train_samp[~df_train_samp.text_original.duplicated(keep='first')]
+df_train_samp = df_train_samp.reset_index(drop=True)
+print(len(df_train_samp))
+print(df_train_samp.language_iso.value_counts())
+# test
+#df_test = df_test.groupby(by="language_iso").apply(lambda x: x.groupby(by="label_subcat_text").apply(lambda x: x.sample(n=min(len(x), 50), random_state=42)))
+df_test_samp_min_subcat = df_test.groupby(by="language_iso").apply(lambda x: x.groupby(by="label_subcat_text").apply(lambda x: x.sample(n=min(len(x), 3), random_state=42)))
+df_test_samp = df_test.groupby(by="language_iso").apply(lambda x: x.sample(n=min(len(x), 2_500), random_state=42))
+df_test_samp = pd.concat([df_test_samp, df_test_samp_min_subcat])
+df_test_samp = df_test_samp[~df_test_samp.text_original.duplicated(keep='first')]
+df_test_samp = df_test_samp.reset_index(drop=True)
+print(len(df_test_samp))
+print(df_test_samp.language_iso.value_counts())
+
 
 
 #### Save data
 print(os.getcwd())
 
 ### write
-## datasets used in first paper
-df_cl.to_csv("./data-clean/df_manifesto_all.csv")
-df_train.to_csv("./data-clean/df_manifesto-8_train.csv")
-df_test.to_csv("./data-clean/df_manifesto-8_test.csv")
+#df_cl.to_csv("./data-clean/df_manifesto_all.csv")
+#df_train.to_csv("./data-clean/df_manifesto-8_train.csv")
+#df_test.to_csv("./data-clean/df_manifesto-8_test.csv")
+
+name_df_all = "df_manifesto_all"
+name_df_train = "df_manifesto-8_samp_train"
+name_df_test = "df_manifesto-8_samp_test"
+#compression_options = dict(method='zip', archive_name=f'....csv')
+df_cl.to_csv(f'./data-clean/{name_df_all}.zip', compression={"method": "zip", "archive_name": f"{name_df_all}.csv"}, index=False)
+df_train_samp.to_csv(f'./data-clean/{name_df_train}.zip', compression={"method": "zip", "archive_name": f"{name_df_train}.csv"}, index=False)
+df_test_samp.to_csv(f'./data-clean/{name_df_test}.zip', compression={"method": "zip", "archive_name": f"{name_df_test}.csv"}, index=False)
+
 
 """
 df_cl_military.to_csv("./data-clean/df_manifesto_military_cl.csv")
@@ -471,5 +469,36 @@ df_distribution_lang_nationalway = pd.concat(df_distribution_lang_nationalway, a
 
 """
 
+
+
+
+
+## test how many sentences have same type as preceding / following sentence
+"""test_lst = []
+test_lst2 = []
+test_lst_after = []
+for name_df, group_df in df_cl.groupby(by="doc_id", group_keys=False, as_index=False, sort=False):
+  for i in range(len(group_df)):
+    # one preceding text
+    if i == 0:
+      continue
+    elif group_df["label_text"].iloc[i] == group_df["label_text"].iloc[i-1]:
+      test_lst.append("same_before")
+    else:
+      #test_lst.append(f"different label before: {group_df['label_text'].iloc[i-1]}")
+      test_lst.append(f"different label before")
+    # for following texts
+    if i >= len(group_df)-1:
+      continue
+    elif group_df["label_text"].iloc[i] == group_df["label_text"].iloc[i+1]:
+      test_lst_after.append("same_after")
+    else:
+      #test_lst_after.append(f"different label after: {group_df['label_text'].iloc[i+1]}")
+      test_lst_after.append(f"different label after")
+
+print(pd.Series(test_lst).value_counts(normalize=True), "\n")
+print(pd.Series(test_lst_after).value_counts(normalize=True), "\n")"""
+# SOTU: 75 % of sentences have the same type as the preceeding sentence. also 75% for following sentence. #  concatenating preceding/following leads to data leakage? 25% different class which can confuse the model, its's random and same for all models
+# Manifesto: 57 % of sentences have same type as preceding sentence (57 class). # including preceding sentence should not provide illegitimate advantage to classifier
 
 

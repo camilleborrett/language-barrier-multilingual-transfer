@@ -45,13 +45,14 @@ import numpy as np
 from sentence_transformers import SentenceTransformer, util
 import torch
 
-df_train = pd.read_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}.csv", sep=",").reset_index(drop=True)   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',
-df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}.csv", sep=",").reset_index(drop=True)   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',#
+df = pd.read_csv(f"./data-clean/df_{DATASET}_trans_{NMT_MODEL}.zip", sep=",").reset_index(drop=True)   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',
 
-# deletable texts where translation failed - i.e. produced nan
-# need to reset index, otherwise error from sentence-transformers
-df_train = df_train[~df_train.text_original_trans.isna()].reset_index(drop=True)
-df_test = df_test[~df_test.text_original_trans.isna()].reset_index(drop=True)
+# if translation failed and produced nan, add empty string - to avoid errors - don't delete to maintain length of df
+df["text_original_trans"] = df.text_original_trans.fillna("[TRANS_FAIL]")
+# reset index because sentence transformers needs sequential index
+df = df.reset_index(drop=True)
+
+
 
 ## load model
 # https://sbert.net/docs/pretrained_models.html
@@ -68,76 +69,46 @@ model_en.to(device)
 
 ### multilingual embeddings - simply on text_original
 # embedding the translated column here to test if the slight variations from translated texts are useful for augmentation
-embeddings_multi_test = model_multiling.encode(df_test.text_original_trans, convert_to_tensor=False)
-embeddings_multi_train = model_multiling.encode(df_train.text_original_trans, convert_to_tensor=False)
-
+embeddings_multi = model_multiling.encode(df.text_original_trans, convert_to_tensor=False)
 # add to df
-df_test["text_original_trans_embed_multi"] = embeddings_multi_test.tolist()
-df_train["text_original_trans_embed_multi"] = embeddings_multi_train.tolist()
+df["text_original_trans_embed_multi"] = embeddings_multi.tolist()
 
 ### English embeddings - embed only english (translated) texts with English model
-# test
-text_en_test = df_test[df_test.language_iso_trans == "en"].text_original_trans
-text_en_test_index = df_test[df_test.language_iso_trans == "en"].text_original_trans.index  # saving index for merge below
-# train
-text_en_train = df_train[df_train.language_iso_trans == "en"].text_original_trans
-text_en_train_index = df_train[df_train.language_iso_trans == "en"].text_original_trans.index  # saving index for merge below
-
+text_en = df[df.language_iso_trans == "en"].text_original_trans
+text_en_index = df[df.language_iso_trans == "en"].text_original_trans.index  # saving index for merge below
 # embed
-embeddings_en_test = model_en.encode(text_en_test.reset_index(drop=True), convert_to_tensor=False)  # have to reset index, encode method throws error otherwise
-embeddings_en_train = model_en.encode(text_en_train.reset_index(drop=True), convert_to_tensor=False)  # have to reset index, encode method throws error otherwise
+embeddings_en = model_en.encode(text_en.reset_index(drop=True), convert_to_tensor=False)  # have to reset index, encode method throws error otherwise
 
 # merge subset of English embeddings with full df via index
-embeddings_en_test_series = pd.Series(index=text_en_test_index, data=embeddings_en_test.tolist()).rename("text_original_trans_embed_en")
-df_test_embed = df_test.merge(embeddings_en_test_series, how='left', left_index=True, right_index=True)
+embeddings_en_series = pd.Series(index=text_en_index, data=embeddings_en.tolist()).rename("text_original_trans_embed_en")
+df_embed = df.merge(embeddings_en_series, how='left', left_index=True, right_index=True)
 
-embeddings_en_train_series = pd.Series(index=text_en_train_index, data=embeddings_en_train.tolist()).rename("text_original_trans_embed_en")
-df_train_embed = df_train.merge(embeddings_en_train_series, how='left', left_index=True, right_index=True)
 
-## tests df_test
+## tests df
 # check of lengths make sense
-print(df_test.language_iso_trans.value_counts())
-print(len(df_test_embed))
-print(len(df_test))
+print(df.language_iso_trans.value_counts())
+print(len(df_embed))
+print(len(df))
 
 # English
-print(len(df_test_embed["text_original_trans_embed_en"]))
+print(len(df_embed["text_original_trans_embed_en"]))
 
-print(sum(pd.isna(df_test_embed["text_original_trans_embed_en"])))
-print(len(df_test_embed[df_test_embed.language_iso_trans == "en"]["text_original_trans"]))
+print(sum(pd.isna(df_embed["text_original_trans_embed_en"])))
+print(len(df_embed[df_embed.language_iso_trans == "en"]["text_original_trans"]))
 
-print(sum(pd.isna(df_test_embed["text_original_trans_embed_en"])) + len(df_test_embed[df_test_embed.language_iso_trans == "en"]["text_original_trans"]))
-print(len(df_test_embed["text_original_trans"]))
-
-# Multi
-print(len(df_test_embed["text_original_trans_embed_multi"]))
-print(sum(pd.isna(df_test_embed["text_original_trans_embed_multi"])))
-
-## tests df_train
-# check of lengths make sense
-print(df_train.language_iso_trans.value_counts())
-print(len(df_train_embed))
-print(len(df_train))
-
-# English
-print(len(df_train_embed["text_original_trans_embed_en"]))
-
-print(sum(pd.isna(df_train_embed["text_original_trans_embed_en"])))
-print(len(df_train_embed[df_train_embed.language_iso_trans == "en"]["text_original_trans"]))
-
-print(sum(pd.isna(df_train_embed["text_original_trans_embed_en"])) + len(df_train_embed[df_train_embed.language_iso_trans == "en"]["text_original_trans"]))
-print(len(df_train_embed["text_original_trans"]))
+print(sum(pd.isna(df_embed["text_original_trans_embed_en"])) + len(df_embed[df_embed.language_iso_trans == "en"]["text_original_trans"]))
+print(len(df_embed["text_original_trans"]))
 
 # Multi
-print(len(df_train_embed["text_original_trans_embed_multi"]))
-print(sum(pd.isna(df_train_embed["text_original_trans_embed_multi"])))
+print(len(df_embed["text_original_trans_embed_multi"]))
+print(sum(pd.isna(df_embed["text_original_trans_embed_multi"])))
 
-print(df_test_embed.drop(columns=["parfam", "date", "party", "partyname"]).sample(n=100, random_state=42))
+print(df_embed.drop(columns=["parfam", "date", "party", "partyname"]).sample(n=100, random_state=42))
 
 
 #### write to disk
-df_train_embed.to_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}_embed.csv", index=False)
-df_test_embed.to_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}_embed.csv", index=False)
+df_embed.to_csv(f"./data-clean/df_{DATASET}_trans_{NMT_MODEL}_embed.zip",
+                compression={"method": "zip", "archive_name": f"df_{DATASET}_trans_{NMT_MODEL}_embed.csv"}, index=False)
 
 
 print("Script done.")
