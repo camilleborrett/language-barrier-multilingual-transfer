@@ -63,6 +63,9 @@ df_exp_multi = df_exp[df_exp.augmentation.isin(augmentation_multi)]
 df_exp_mono = df_exp[~df_exp.augmentation.isin(augmentation_multi)]
 
 
+df_exp_mono.to_excel("./results/manifesto-8/tables/df_results_mono_500samp.xlsx")
+df_exp_multi.to_excel("./results/manifesto-8/tables/df_results_multi_500samp.xlsx")
+
 
 
 
