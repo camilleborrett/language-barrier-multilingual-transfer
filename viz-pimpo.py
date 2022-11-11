@@ -9,33 +9,34 @@ languages_lst = ["en", "de"]
 languages_lst = ["en", "de", "sv", "fr"]
 language_str = "_".join(languages_lst)
 
-DATE = "221103"
+DATE = "221111"
 TASK = "immigration"  # "immigration", "integration
 METHOD = "nli"  # standard_dl nli
 VECTORIZER = "en"
 HYPOTHESIS = "long"
-SAMPLE_PER_LANG = "500"
+MAX_SAMPLE_LANG = "50"
 
 META_DATA = "parfam_text"  # "parfam_text", "country_iso", "language_iso", "decade"
 NORMALIZE = True
 
 
-df = pd.read_csv(f"./results/pimpo/df_pimpo_pred_{TASK}_{METHOD}_{HYPOTHESIS}_{VECTORIZER}_{SAMPLE_PER_LANG}samp_{language_str}_{DATE}.csv")
-# !! issue with NLI list in label column for nli-en-long
+df = pd.read_csv(f"./results/pimpo/df_pimpo_pred_{TASK}_{METHOD}_{HYPOTHESIS}_{VECTORIZER}_{MAX_SAMPLE_LANG}samp_{language_str}_{DATE}.zip")
+# !? issue with NLI list in label column for nli-en-long
+# next run maybe fixes it because changed deep copy in format_nli_testset
 
-df = df.rename(columns={"label_pred_text": "label_text_pred"})
+df = df.rename(columns={"label_pred_text": "label_text_pred"}) # now fixed in new script
 
 
 
 
 ## adding date variable to predicted dfs via doc_id key
-df_pimpo_samp = pd.read_csv("./data-clean/df_pimpo_samp.csv")
+"""df_pimpo_samp = pd.read_csv("./data-clean/df_pimpo_samp.csv")
 df_pimpo_samp_date = df_pimpo_samp[["doc_id", "date"]]
 df_pimpo_samp_date = df_pimpo_samp_date[~df_pimpo_samp_date.doc_id.duplicated(keep="first")]
 df_pimpo_samp_date["doc_id"] = df_pimpo_samp_date.doc_id.astype(str)
 df["doc_id"] = df.doc_id.astype(str)
 # merge
-df = pd.merge(df, df_pimpo_samp_date, left_on="doc_id", right_on="doc_id", how="left")
+df = pd.merge(df, df_pimpo_samp_date, left_on="doc_id", right_on="doc_id", how="left")"""
 # making date-month string to decate string
 df["decade"] =  df["date"].apply(lambda x: str(x)[:3] + "0")
 

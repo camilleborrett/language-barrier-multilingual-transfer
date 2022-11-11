@@ -71,7 +71,7 @@ model_en.to(device)
 # embedding the translated column here to test if the slight variations from translated texts are useful for augmentation
 if DATASET == "pimpo_samp":
     # for pimpo, the original texts are multilingual
-    df["text_concat"] = df.text_preceding + " " + df.text_original + " " + df.text_following
+    df["text_concat"] = df.text_preceding.fillna("") + " " + df.text_original.fillna("") + " " + df.text_following.fillna("")
     embeddings_multi = model_multiling.encode(df["text_concat"], convert_to_tensor=False)
     df["text_concat_embed_multi"] = embeddings_multi.tolist()
 elif "manifesto-8_samp" in DATASET:
@@ -84,7 +84,7 @@ else:
 ### English embeddings - embed only english (translated) texts with English model
 if DATASET == "pimpo_samp":
     # for pimpo, all translated texts are already only in English
-    df["text_trans_concat"] = df.text_preceding_trans + " " + df.text_original_trans + " " + df.text_following_trans
+    df["text_trans_concat"] = df.text_preceding_trans.fillna("") + " " + df.text_original_trans.fillna("") + " " + df.text_following_trans.fillna("")
     embeddings_en = model_en.encode(df["text_trans_concat"].reset_index(drop=True), convert_to_tensor=False)  # have to reset index, encode method throws error otherwise
     df["text_trans_concat_embed_en"] = embeddings_en.tolist()
     # harmonize final df name

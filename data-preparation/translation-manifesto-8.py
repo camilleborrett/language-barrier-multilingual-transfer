@@ -58,8 +58,8 @@ df_train = pd.read_csv(f"./data-clean/df_{DATASET}_train.zip", sep=",")   #on_ba
 df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test.zip", sep=",")   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',
 
 ## for testing
-df_train = df_train.groupby(by="language_iso").apply(lambda x: x.sample(n=min(len(x), 10), random_state=42))
-df_test = df_test.groupby(by="language_iso").apply(lambda x: x.sample(n=min(len(x), 10), random_state=42))
+df_train = df_train.groupby(by="language_iso").apply(lambda x: x.sample(n=min(len(x), 200), random_state=42))
+df_test = df_test.groupby(by="language_iso").apply(lambda x: x.sample(n=min(len(x), 100), random_state=42))
 
 
 

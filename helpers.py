@@ -248,8 +248,20 @@ def choose_preprocessed_text(df_train_scenario_samp_augment=None, df_test_scenar
             df_test_scenario["text_prepared"] = df_test_scenario.text_original_trans
         # multilingual BERT
         elif vectorizer == "embeddings-multi":
-            df_train_scenario_samp_augment["text_prepared"] = df_train_scenario_samp_augment.text_original_trans
+            df_train_scenario_samp_augment["text_prepared"] = df_train_scenario_samp_augment.text_original_trans  # not 100% sure if this column is correct. using this column for augmented texts. Original texts are the same in this col, so should be correct.
             df_test_scenario["text_prepared"] = df_test_scenario.text_original_trans
+        return df_train_scenario_samp_augment, df_test_scenario
+
+    elif method == "nli":
+        # BERT-NLI (en)
+        if vectorizer == "embeddings-en":
+            #if augmentation in ["one2anchor", "no-nmt-multi", "many2anchor", "many2many"]:
+            df_train_scenario_samp_augment["text_prepared"] = 'The quote: "' + df_train_scenario_samp_augment.text_original_trans + '"'
+            df_test_scenario["text_prepared"] = 'The quote: "' + df_test_scenario.text_original_trans + '"'
+        # multilingual BERT-NLI
+        elif vectorizer == "embeddings-multi":
+            df_train_scenario_samp_augment["text_prepared"] = 'The quote: "' + df_train_scenario_samp_augment.text_original_trans + '"'
+            df_test_scenario["text_prepared"] = 'The quote: "' + df_test_scenario.text_original_trans + '"'
         return df_train_scenario_samp_augment, df_test_scenario
 
 
@@ -298,16 +310,17 @@ def format_nli_testset(df_test=None, hypo_label_dic=None):
     label_lst = [0 if value == hypo else 1 for hypo in hypothesis_lst]
     label_text_label_dic_explode[key] = label_lst
 
-  df_test["label"] = df_test.label_text.map(label_text_label_dic_explode)
-  df_test["hypothesis"] = [hypothesis_lst] * len(df_test)
-  print(f"For normal test, N classifications necessary: {len(df_test)}")
+  df_test_copy = df_test.copy(deep=True)  # did this change the global df?
+  df_test_copy["label"] = df_test_copy.label_text.map(label_text_label_dic_explode)
+  df_test_copy["hypothesis"] = [hypothesis_lst] * len(df_test_copy)
+  print(f"For normal test, N classifications necessary: {len(df_test_copy)}")
   
   # explode dataset to have K-1 additional rows with not_entail label and K-1 other hypotheses
   # ! after exploding, cannot sample anymore, because distorts the order to true label values, which needs to be preserved for evaluation multilingual-repo
-  df_test = df_test.explode(["hypothesis", "label"])  # multi-column explode requires pd.__version__ >= '1.3.0'
-  print(f"For NLI test, N classifications necessary: {len(df_test)}\n")
+  df_test_copy = df_test_copy.explode(["hypothesis", "label"])  # multi-column explode requires pd.__version__ >= '1.3.0'
+  print(f"For NLI test, N classifications necessary: {len(df_test_copy)}\n")
 
-  return df_test.copy(deep=True)
+  return df_test_copy #df_test.copy(deep=True)
 
 
 ### data preparation function for optuna. comprises sampling, text formatting, splitting, nli-formatting

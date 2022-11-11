@@ -1,6 +1,6 @@
 #!/bin/bash
 #Set batch job requirements
-#SBATCH -t 1:00:00
+#SBATCH -t 6:00:00
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -21,7 +21,7 @@ pip install -r requirements.txt
 dataset='pimpo_samp'
 study_date='221110'
 nmt_model='m2m_100_418M'  # m2m_100_418M, m2m_100_1.2B
-batch_size=48  # 16, 64
+batch_size=64  # 16, 64
 max_length=160
 language_target='en'
 text_col=''
