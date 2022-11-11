@@ -6,7 +6,6 @@
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=m.laurer@vu.nl
 #SBATCH --job-name=gpu-fix
-#SBATCH --ntasks=32
 
 # Loading modules for Snellius
 module load 2021

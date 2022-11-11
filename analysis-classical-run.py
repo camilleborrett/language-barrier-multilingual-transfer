@@ -150,14 +150,14 @@ NMT_MODEL = args.nmt_model
 
 # ## Load data
 if "manifesto-8" in DATASET:
-  df_cl = pd.read_csv("./data-clean/df_manifesto_all.csv")
-  df_train = pd.read_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}_embed_tfidf.csv")
-  df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}_embed_tfidf.csv")
+  df_cl = pd.read_csv("./data-clean/df_manifesto_all.zip")
+  df_train = pd.read_csv(f"./data-clean/df_{DATASET}_samp_train_trans_{NMT_MODEL}_embed_tfidf.zip")
+  df_test = pd.read_csv(f"./data-clean/df_{DATASET}_samp_test_trans_{NMT_MODEL}_embed_tfidf.zip")
 else:
   raise Exception(f"Dataset name not found: {DATASET}")
 
 ## special preparation of manifesto simple dataset - chose 8 or 57 labels
-if DATASET == "manifesto-8":
+if "manifesto-8" in DATASET:
   df_cl["label_text"] = df_cl["label_domain_text"]
   df_cl["label"] = pd.factorize(df_cl["label_text"], sort=True)[0]
   df_train["label_text"] = df_train["label_domain_text"]

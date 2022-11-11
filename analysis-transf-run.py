@@ -92,8 +92,10 @@ parser.add_argument('-hp_date', '--hyperparam_study_date', type=str,
 
 parser.add_argument('-nmt', '--nmt_model', type=str,
                     help='Which neural machine translation model to use? "opus-mt", "m2m_100_1.2B", "m2m_100_418M" ')
-
-
+parser.add_argument('-max_e', '--max_epochs', type=int, #nargs='+',
+                    help='number of epochs')
+parser.add_argument('-max_len', '--max_length', type=int, #nargs='+',
+                    help='number of epochs')
 
 ### choose arguments depending on execution in terminal or in script for testing
 if EXECUTION_TERMINAL == True:
@@ -117,13 +119,16 @@ elif EXECUTION_TERMINAL == False:
                             "--method", "standard_dl", "--model", "microsoft/MiniLM-L12-H384-uncased",  # "microsoft/Multilingual-MiniLM-L12-H384", "microsoft/MiniLM-L12-H384-uncased"
                             "--vectorizer", "embeddings-en",  # "tfidf", "embeddings-en", "embeddings-multi"
                             "--nmt_model", "m2m_100_1.2B",  # "m2m_100_1.2B", "m2m_100_418M"
-                            "--hyperparam_study_date", "20221026"])
+                            "--hyperparam_study_date", "20221026"
+                            "--max_epochs", "2", "max_length", "160"])
 
 
 
 ### args only for test runs
 CROSS_VALIDATION_REPETITIONS_FINAL = args.n_cross_val_final
 ZEROSHOT = args.zeroshot
+MAX_EPOCHS = args.max_epochs
+MAX_LENGTH = args.max_length
 
 ### args for both hyperparameter tuning and test runs
 # choose dataset
@@ -140,12 +145,24 @@ VECTORIZER = args.vectorizer
 # decide on model to run
 METHOD = args.method  # "standard_dl", "nli", "classical_ml"
 MODEL_NAME = args.model  # "SVM"
-if (MODEL_NAME == "transformer") and (VECTORIZER == "embeddings-en"):
-    MODEL_NAME = "microsoft/deberta-v3-base"  #"microsoft/MiniLM-L12-H384-uncased"
-elif (MODEL_NAME == "transformer") and (VECTORIZER == "embeddings-multi"):
-    MODEL_NAME = "microsoft/mdeberta-v3-base"  #"microsoft/Multilingual-MiniLM-L12-H384", microsoft/mdeberta-v3-base
+
+if METHOD == "standard_dl":
+    if (MODEL_NAME == "transformer") and (VECTORIZER == "embeddings-en"):
+        MODEL_NAME = "microsoft/deberta-v3-base"  #"microsoft/MiniLM-L12-H384-uncased"
+    elif (MODEL_NAME == "transformer") and (VECTORIZER == "embeddings-multi"):
+        MODEL_NAME = "microsoft/mdeberta-v3-base"  #"microsoft/Multilingual-MiniLM-L12-H384", microsoft/mdeberta-v3-base
+    else:
+        raise Exception(f"Scenario for transformer name not implemented for MODEL_NAME {MODEL_NAME} and VECTORIZER {VECTORIZER} and METHOD {METHOD}")
+elif METHOD == "nli":
+    if (MODEL_NAME == "transformer") and (VECTORIZER == "embeddings-en"):
+        MODEL_NAME = "MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli"
+    elif (MODEL_NAME == "transformer") and (VECTORIZER == "embeddings-multi"):
+        MODEL_NAME = "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
+    else:
+        raise Exception(f"Scenario for transformer name not implemented for MODEL_NAME {MODEL_NAME} and VECTORIZER {VECTORIZER} and METHOD {METHOD}")
 else:
-    raise Exception(f"Scenario for transformer name not implemented for MODEL_NAME {MODEL_NAME} and VECTORIZER {VECTORIZER}")
+    raise Exception(f"Scenario for transformer name not implemented for METHOD {METHOD}")
+
 
 HYPERPARAM_STUDY_DATE = args.hyperparam_study_date  #"20220304"
 NMT_MODEL = args.nmt_model
@@ -154,14 +171,14 @@ NMT_MODEL = args.nmt_model
 
 # ## Load data
 if "manifesto-8" in DATASET:
-  df_cl = pd.read_csv("./data-clean/df_manifesto_all.csv")
-  df_train = pd.read_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}_embed_tfidf.csv")
-  df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}_embed_tfidf.csv")
+  df_cl = pd.read_csv("./data-clean/df_manifesto_all.zip")
+  df_train = pd.read_csv(f"./data-clean/df_{DATASET}_samp_train_trans_{NMT_MODEL}_embed_tfidf.zip")
+  df_test = pd.read_csv(f"./data-clean/df_{DATASET}_samp_test_trans_{NMT_MODEL}_embed_tfidf.zip")
 else:
   raise Exception(f"Dataset name not found: {DATASET}")
 
 ## special preparation of manifesto simple dataset - chose 8 or 57 labels
-if DATASET == "manifesto-8":
+if "manifesto-8" in DATASET:
   df_cl["label_text"] = df_cl["label_domain_text"]
   df_cl["label"] = pd.factorize(df_cl["label_text"], sort=True)[0]
   df_train["label_text"] = df_train["label_domain_text"]
@@ -225,6 +242,7 @@ from helpers import load_model_tokenizer, tokenize_datasets, set_train_args, cre
 
 ## functions for scenario data selection and augmentation
 from helpers import select_data_for_scenario_hp_search, select_data_for_scenario_final_test, data_augmentation, sample_for_scenario, choose_preprocessed_text
+from helpers import format_nli_trainset, format_nli_testset
 
 
 
@@ -241,9 +259,14 @@ n_sample_string = N_SAMPLE_DEV[0]
 while len(str(n_sample_string)) <= 4:
     n_sample_string = "0" + str(n_sample_string)
 
-## running with mostly standard good hyperparameters
-# ! dynamically adjusting n_epochs in loop below
-HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 50, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 200}]
+### running with mostly standard good hyperparameters
+# automatically calculate roughly adequate epochs for number of data points in loop below
+if METHOD == "standard_dl":
+    HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 50, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.6, 'weight_decay': 0.05, 'per_device_eval_batch_size': 200}]
+elif METHOD == "nli":
+    HYPER_PARAMS_LST = [{'lr_scheduler_type': 'linear', 'learning_rate': 2e-5, 'num_train_epochs': 20, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.40, 'weight_decay': 0.05, 'per_device_eval_batch_size': 200}]
+else:
+    raise Exception(f"Method {METHOD} not implemented")
 
 #N_SAMPLE_TEST = N_SAMPLE_DEV * len(LANGUAGES)
 #HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 60, 'seed': 42, 'per_device_train_batch_size': 16, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 128}]
@@ -256,6 +279,21 @@ HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'nu
 
 HYPER_PARAMS_LST = HYPER_PARAMS_LST * len(LANGUAGES)
 print(HYPER_PARAMS_LST)
+
+
+## create hypotheses for NLI
+hypo_label_dic = OrderedDict({
+    "Economy": "The quote is about topics like economy, or technology, or infrastructure, or free market",
+    "External Relations": "The quote is about topics like international relations, or foreign policy, or military",
+    "Fabric of Society": "The quote is about topics like law and order, or multiculturalism, or national way of life, or traditional morality",
+    "Freedom and Democracy": "The quote is about topics like democracy, or freedom, or human rights, or constitutionalism",
+    "Political System": "The quote is about topics like governmental efficiency, or political authority, or decentralisation, or corruption",
+    "Social Groups": "The quote is about topics like agriculture, or social groups, or labour groups, or minorities",
+    "Welfare and Quality of Life": "The quote is about topics like welfare, or education, or environment, or equality, or culture",
+    "No other category applies": "The quote is about something other than the topics economy, international relations, society, freedom and democracy, political system, social groups, welfare. It is about none of these topics"
+})
+
+
 
 # FP16 if cuda and if not mDeBERTa
 fp16_bool = True if torch.cuda.is_available() else False
@@ -329,16 +367,24 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
     df_train_scenario_samp_augment_textcol, df_test_scenario_textcol = choose_preprocessed_text(df_train_scenario_samp_augment=df_train_scenario_samp_augment, df_test_scenario=df_test_scenario, augmentation=AUGMENTATION, vectorizer=VECTORIZER, vectorizer_sklearn=None, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR, method=METHOD)
     df_train_scenario_samp_augment_textcol = df_train_scenario_samp_augment_textcol.sample(frac=1.0, random_state=random_seed_sample)
 
+    # format datasets for NLI
+    if METHOD == "nli":
+        df_train_scenario_samp_augment_textcol = format_nli_trainset(df_train=df_train_scenario_samp_augment_textcol, hypo_label_dic=hypo_label_dic, random_seed=SEED_GLOBAL)
+        df_test_scenario_textcol = format_nli_testset(df_test=df_test_scenario_textcol, hypo_label_dic=hypo_label_dic)
+
     clean_memory()
-    model, tokenizer = load_model_tokenizer(model_name=MODEL_NAME, method=METHOD, label_text_alphabetical=LABEL_TEXT_ALPHABETICAL)
-    encoded_dataset = tokenize_datasets(df_train_samp=df_train_scenario_samp_augment_textcol, df_test=df_test_scenario_textcol, tokenizer=tokenizer, method=METHOD, max_length=None)
+    model, tokenizer = load_model_tokenizer(model_name=MODEL_NAME, method=METHOD, label_text_alphabetical=LABEL_TEXT_ALPHABETICAL, model_max_length=MAX_LENGTH)
+    encoded_dataset = tokenize_datasets(df_train_samp=df_train_scenario_samp_augment_textcol, df_test=df_test_scenario_textcol, tokenizer=tokenizer, method=METHOD, max_length=MAX_LENGTH)
 
     # dynamically adapt epochs
     ## automatically calculate roughly adequate epochs for number of data points
-    max_steps = 7_000  # value chosen to lead to roughly 45 epochs with 5k n_data, 23 with 10k, then decrease epochs
+    if METHOD == "standard_dl":
+        max_steps = 7_000  # value chosen to lead to roughly 45 epochs with 5k n_data, 23 with 10k, then decrease epochs
+    elif METHOD == "nli":
+        max_steps = 5_000  # careful not to set this too low, because NLI doubles the training data through not-entail augmentation
     batch_size = 32
-    max_epochs = 50  # 50  # good value from NLI paper experience for aroung 500 - 5k data
-    n_data = 500_000  # len(df_train)
+    max_epochs = MAX_EPOCHS  # 50  # good value from NLI paper experience for around 500 - 5k data for standard dl
+    n_data = len(df_train_scenario_samp_augment_textcol)  # len(df_train)
     n_epochs = 0
     n_steps = 0
     while (n_epochs < max_epochs) and (n_steps < max_steps):
@@ -358,9 +404,9 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
     #if n_sample != 0:
     #  trainer.train()
 
-    # training on train set sample
-    # train 1 (*n_seeds) or 7 (*n_seeds) classifiers, depending on scenario
-    # these scenarios needs re-training
+    ### training on train set sample
+    ## train 1 (*n_seeds) or 7 (*n_seeds) classifiers, depending on scenario
+    # these scenarios needs re-training for each language
     import copy
     if (n_language == 1) or ((AUGMENTATION in ["no-nmt-many", "many2many"]) and (VECTORIZER in ["tfidf", "embeddings-en"])) or ((AUGMENTATION in ["one2anchor"]) and (VECTORIZER in ["embeddings-multi", "tfidf"])) or ((AUGMENTATION in ["many2anchor"]) and (VECTORIZER in ["tfidf"])):  # tfidf in here, because classifier expects always same feature input length as it has been trained on. this varies for tfidf across languages
         #model_dic.update({f"model_{random_seed_sample}": copy.deepcopy(model)})
@@ -371,13 +417,13 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
         if n_language == 1:
             #model_dic.update({f"trainer_{random_seed_sample}": copy.deepcopy(trainer)})
             # saving models locally, because copy.deepcopy leads to error: "TypeError: cannot pickle 'torch._C.Generator' object"  - seems like I cannot deepcopy the trainer object
-            model_temp_path_local = f"./{TRAINING_DIRECTORY}/model_temp_{DATASET}_{NMT_MODEL}_{random_seed_sample}-fix/"
+            model_temp_path_local = f"./{TRAINING_DIRECTORY}/model_temp_{DATASET}_{METHOD}_{NMT_MODEL}_{random_seed_sample}/"
             trainer.save_model(output_dir=model_temp_path_local)
     # otherwise, re-use previous classifier
     else:
         print("! Skipping training of new classifier, because can reuse previous one !")
         #trainer = model_dic[f"trainer_{random_seed_sample}"]
-        model_temp_path_local = f"./{TRAINING_DIRECTORY}/model_temp_{DATASET}_{NMT_MODEL}_{random_seed_sample}-fix/"
+        model_temp_path_local = f"./{TRAINING_DIRECTORY}/model_temp_{DATASET}_{METHOD}_{NMT_MODEL}_{random_seed_sample}/"
         from transformers import AutoModelForSequenceClassification
         trainer = create_trainer(model=AutoModelForSequenceClassification.from_pretrained(model_temp_path_local), tokenizer=tokenizer, encoded_dataset=encoded_dataset, train_args=train_args,
                                  method=METHOD, label_text_alphabetical=LABEL_TEXT_ALPHABETICAL)
@@ -387,7 +433,6 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
 
     ### metrics
     # https://huggingface.co/docs/transformers/main_classes/trainer#transformers.Trainer.evaluate
-    # ! check if copied trainer also uses copied model - suppose that if not, results would be very bad for later languages. also deepcopying model before creating trainer
     results = trainer.evaluate()  # eval_dataset=encoded_dataset["test"]
 
     experiment_details_dic_lang.update({f"metrics_seed_{random_seed_sample}_lang_{lang}": results})
@@ -421,7 +466,7 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
 
 
   # update of overall experiment dic
-  experiment_details_dic.update({f"experiment_sample_{n_sample_string}_{METHOD}_{MODEL_NAME}_{lang}": experiment_details_dic_lang})
+  experiment_details_dic.update({f"experiment_sample_{n_sample_string}_{METHOD}_{MODEL_NAME.split('/')[-1]}_{lang}": experiment_details_dic_lang})
 
 
   ## stop loop for multiple language case - no separate iterations per language necessary
@@ -479,9 +524,9 @@ experiment_details_dic_summary = {**experiment_details_dic, **experiment_summary
 
 
 if EXECUTION_TERMINAL == True:
-  joblib.dump(experiment_details_dic_summary, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{DATASET}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}-fix.pkl")
+  joblib.dump(experiment_details_dic_summary, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{DATASET}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}.pkl")
 elif EXECUTION_TERMINAL == False:
-  joblib.dump(experiment_details_dic_summary, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{DATASET}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}_t-fix.pkl")
+  joblib.dump(experiment_details_dic_summary, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample_string}samp_{DATASET}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}_t.pkl")
 
 
 

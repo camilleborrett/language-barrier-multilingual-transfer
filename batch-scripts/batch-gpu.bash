@@ -1,12 +1,11 @@
 #!/bin/bash
 # Set batch job requirements
-#SBATCH -t 25:00:00
+#SBATCH -t 2:00:00
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=m.laurer@vu.nl
 #SBATCH --job-name=gpu1
-#SBATCH --ntasks=32
 
 # Loading modules for Snellius
 module load 2021
@@ -27,17 +26,19 @@ pip install -r requirements.txt
 # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
 # "tfidf", "embeddings-en", "embeddings-multi"
 
-study_date=221101
-sample=500
+study_date=221111
+sample=8
 #n_trials=10
 #n_trials_sampling=7
 #n_trials_pruning=7
 #n_cross_val_hyperparam=2
 n_cross_val_final=3
-model='transformer'
-method='standard_dl'
+model='transformer'   # exact model automatically chosen in script
+method='nli'  # standard_dl, nli
 dataset='manifesto-8'
-nmt_model='m2m_100_1.2B'  # m2m_100_418M, m2m_100_1.2B
+nmt_model='m2m_100_418M'  # m2m_100_418M, m2m_100_1.2B
+max_epochs=20  # 20, 50
+max_length=256
 
 
 
@@ -52,8 +53,8 @@ do
   do
     python analysis-transf-run.py --n_cross_val_final $n_cross_val_final \
            --dataset $dataset --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" --nmt_model $nmt_model \
-           --augmentation_nmt $translation --model $model --vectorizer $vectorizer --method $method \
-           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/manifesto-8/logs/run-$model-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs.txt
+           --augmentation_nmt $translation --model $model --vectorizer $vectorizer --method $method --max_epochs $max_epochs --max_length $max_length \
+           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/manifesto-8/logs/run-$model-$method-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs.txt
     echo Final run done for scenario: $translation $vectorizer
   done
 done
@@ -69,8 +70,8 @@ do
   do
     python analysis-transf-run.py --n_cross_val_final $n_cross_val_final \
            --dataset $dataset --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" --nmt_model $nmt_model \
-           --augmentation_nmt $translation --model $model --vectorizer $vectorizer --method $method \
-           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/manifesto-8/logs/run-$model-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs.txt
+           --augmentation_nmt $translation --model $model --vectorizer $vectorizer --method $method --max_epochs $max_epochs --max_length $max_length \
+           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/manifesto-8/logs/run-$model-$method-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs.txt
     echo Final run done for scenario: $translation $vectorizer
   done
 done

@@ -26,7 +26,7 @@ pip install -r requirements.txt
 # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
 # "tfidf", "embeddings-en", "embeddings-multi"
 
-study_date=221101
+study_date=221111
 sample=500
 n_trials=40
 n_trials_sampling=20
