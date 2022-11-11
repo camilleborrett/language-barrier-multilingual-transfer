@@ -1,6 +1,6 @@
 #!/bin/bash
 #Set batch job requirements
-#SBATCH -t 6:00:00
+#SBATCH -t 40:00:00
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -25,8 +25,8 @@ dataset_train='manifesto-8_samp_train'
 dataset_test='manifesto-8_samp_test'
 nmt_model='m2m_100_418M'  # m2m_100_418M, m2m_100_1.2B
 batch_size=64  # 16, 64
-max_length=160
-study_date='221110'
+max_length=200
+study_date='221111'
 
 
 # trainslate train and test

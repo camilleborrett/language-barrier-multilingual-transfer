@@ -53,13 +53,7 @@ country_map = {
 }
 df_cl["country_iso"] = [country_map[country_id] for country_id in df_cl.country]
 # languages ISO 639-2/T https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes
-# !! should me this iso2-char
 # languages used in manifesto-8: ["en", "de", "es", "fr", "ko", "tr", "ru"]
-"""languages_map = {
-    11: "swe", 12: "nor", 13: "dan", 14: "fin", 22: "nld",
-    33: "spa", 41: "deu", 42: "deu", 43: "deu",  # manually checked Switzerland, only has deu texts
-    53: "eng", 61: "eng", 62: "fra", 63: "eng", 64: "eng"  # manually checked Canada, only has fra texts
-}"""
 languages_map = {
     11: "sv", 12: "no", 13: "da", 14: "fi", 22: "nl",  # norwegian is actually "nn", but m2m paper calls it "no"
     33: "es", 41: "de", 42: "de", 43: "de",  # manually checked Switzerland, only has deu texts

@@ -246,7 +246,7 @@ print(df_train_samp.language_iso.value_counts())
 # test
 #df_test = df_test.groupby(by="language_iso").apply(lambda x: x.groupby(by="label_subcat_text").apply(lambda x: x.sample(n=min(len(x), 50), random_state=42)))
 df_test_samp_min_subcat = df_test.groupby(by="language_iso").apply(lambda x: x.groupby(by="label_subcat_text").apply(lambda x: x.sample(n=min(len(x), 3), random_state=42)))
-df_test_samp = df_test.groupby(by="language_iso").apply(lambda x: x.sample(n=min(len(x), 2_500), random_state=42))
+df_test_samp = df_test.groupby(by="language_iso").apply(lambda x: x.sample(n=min(len(x), 4_000), random_state=42))
 df_test_samp = pd.concat([df_test_samp, df_test_samp_min_subcat])
 df_test_samp = df_test_samp[~df_test_samp.text_original.duplicated(keep='first')]
 df_test_samp = df_test_samp.reset_index(drop=True)

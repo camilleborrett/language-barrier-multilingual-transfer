@@ -24,7 +24,7 @@ pip install -r requirements.txt
 method_lst='nli standard_dl'  # nli, standard_dl, (transformer-embed)
 vectorizer_lst='en multi'  # en, multi
 languages_lst="en en-de en-de-sv-fr"  # "en", "en-de", "en-de-sv-fr"
-task_lst='integration'  # immigration, integration
+task_lst='immigration integration'  # immigration, integration
 max_sample_lang=50
 max_epochs=10  # only taken into account for standard_dl
 max_length=256

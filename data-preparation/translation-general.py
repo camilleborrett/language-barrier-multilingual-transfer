@@ -62,8 +62,8 @@ def clean_memory():
 df = pd.read_csv(f"./data-clean/df_{DATASET}.zip", sep=",")   #on_bad_lines='skip' encoding='utf-8',  # low_memory=False  #lineterminator='\t',
 
 ## for testing for pimpo
-df = df.groupby(by="label_text", as_index=False, group_keys=False).apply(lambda x: x.sample(n=min(10_000, len(x)), random_state=42) if x.label_text.iloc[0] == "no_topic" else x)
-df = df.groupby(by="language_iso").apply(lambda x: x.sample(n=min(len(x), 300), random_state=42))
+#df = df.groupby(by="label_text", as_index=False, group_keys=False).apply(lambda x: x.sample(n=min(10_000, len(x)), random_state=42) if x.label_text.iloc[0] == "no_topic" else x)
+#df = df.groupby(by="language_iso").apply(lambda x: x.sample(n=min(len(x), 300), random_state=42))
 
 
 ## drop duplicates
