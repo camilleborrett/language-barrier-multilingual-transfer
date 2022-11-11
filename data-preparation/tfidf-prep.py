@@ -97,7 +97,7 @@ for group_name, group_df in tqdm.tqdm(df.groupby(by="language_iso_trans", as_ind
         df_prep_lst.append(group_df)
 df_prep = pd.concat(df_prep_lst)
 
-# test output visually
+# test output visually/manually
 test = df_prep[["language_iso_trans", "text_original_trans", "text_original_trans_tfidf"]]
 
 
@@ -110,6 +110,7 @@ df_prep["text_original_trans_tfidf"] = ["[TFIDF_FAIL]" if text == "" else text f
 if DATASET == "pimpo_samp":
     df_prep = df_prep.drop(columns=["text_original_trans"]) # dropping the overwritten column from above and renaming the original column
     df_prep = df_prep.rename(columns={"text_original_trans_tfidf": "text_trans_concat_tfidf", "text_original_trans_preserved": "text_original_trans"})
+
 
 #### write to disk
 df_prep.to_csv(f"./data-clean/df_{DATASET}_trans_{NMT_MODEL}_embed_tfidf.zip",

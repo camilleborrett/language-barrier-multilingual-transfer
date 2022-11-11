@@ -100,7 +100,7 @@ elif "manifesto-8_samp" in DATASET:
 
 
 ## tests df
-# check of lengths make sense
+# check if lengths make sense
 print(df.language_iso_trans.value_counts())
 print(len(df_embed))
 print(len(df))
