@@ -24,7 +24,7 @@ dataset='manifesto-8_samp'
 dataset_train='manifesto-8_samp_train'
 dataset_test='manifesto-8_samp_test'
 nmt_model='m2m_100_418M'  # m2m_100_418M, m2m_100_1.2B
-batch_size=64  # 16, 64
+batch_size=48  # 16, 48
 max_length=200
 study_date='221111'
 

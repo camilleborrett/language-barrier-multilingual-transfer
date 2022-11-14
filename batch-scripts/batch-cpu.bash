@@ -1,6 +1,6 @@
 #!/bin/bash
 # Set batch job requirements
-#SBATCH -t 25:00:00
+#SBATCH -t 30:00:00
 #SBATCH --partition=thin
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=m.laurer@vu.nl
@@ -19,9 +19,8 @@ pip install --upgrade pip
 pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
 
-# for local run
+## for local run
 #bash ./batch-scripts/batch-cpu.bash
-
 ## scenarios
 # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
 # "tfidf", "embeddings-en", "embeddings-multi"
@@ -35,14 +34,16 @@ n_cross_val_hyperparam=2
 n_cross_val_final=3
 model='logistic'
 method='classical_ml'
-dataset='manifesto-8'
-nmt_model='m2m_100_1.2B'  # m2m_100_418M, m2m_100_1.2B
+dataset='manifesto-8'  # manifesto-8
+nmt_model='m2m_100_418M'  # m2m_100_418M, m2m_100_1.2B
 
 
-translation_lst='one2anchor no-nmt-many many2anchor many2many'
-vectorizer_lst='tfidf embeddings-en embeddings-multi'
 
-## scenario loop
+### scenario loops
+# these two scenarios only works for embeddings-multi, run faster
+translation_lst='no-nmt-single one2many'
+vectorizer_lst='embeddings-multi'
+
 for translation in $translation_lst
 do
   for vectorizer in $vectorizer_lst
@@ -60,9 +61,10 @@ do
   done
 done
 
-# these two scenarios only works for embeddings-multi
-translation_lst='no-nmt-single one2many'
-vectorizer_lst='embeddings-multi'
+
+## remaining scenarios
+translation_lst='one2anchor no-nmt-many many2anchor many2many'
+vectorizer_lst='tfidf embeddings-en embeddings-multi'
 
 for translation in $translation_lst
 do

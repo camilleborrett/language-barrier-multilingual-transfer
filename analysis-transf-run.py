@@ -262,9 +262,9 @@ while len(str(n_sample_string)) <= 4:
 ### running with mostly standard good hyperparameters
 # automatically calculate roughly adequate epochs for number of data points in loop below
 if METHOD == "standard_dl":
-    HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 50, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.6, 'weight_decay': 0.05, 'per_device_eval_batch_size': 200}]
+    HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': MAX_EPOCHS, 'seed': SEED_GLOBAL, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 160}]
 elif METHOD == "nli":
-    HYPER_PARAMS_LST = [{'lr_scheduler_type': 'linear', 'learning_rate': 2e-5, 'num_train_epochs': 20, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.40, 'weight_decay': 0.05, 'per_device_eval_batch_size': 200}]
+    HYPER_PARAMS_LST = [{'lr_scheduler_type': 'linear', 'learning_rate': 2e-5, 'num_train_epochs': MAX_EPOCHS, 'seed': SEED_GLOBAL, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.40, 'weight_decay': 0.05, 'per_device_eval_batch_size': 160}]
 else:
     raise Exception(f"Method {METHOD} not implemented")
 
@@ -390,8 +390,8 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
     while (n_epochs < max_epochs) and (n_steps < max_steps):
         n_epochs += 1
         n_steps += n_data / batch_size  # = steps_one_epoch
-    print("Epochs: ", n_epochs)
-    print("Steps: ", n_steps)
+    print("Epochs automatically chosen: ", n_epochs)
+    print("Steps automatically chosen: ", n_steps)
 
     hyperparams.update({"num_train_epochs": n_epochs})
     experiment_details_dic_lang.update({"hyperparams": hyperparams})

@@ -21,7 +21,7 @@ pip install -r requirements.txt
 dataset='pimpo_samp'
 study_date='221111'
 nmt_model='m2m_100_418M'  # m2m_100_418M, m2m_100_1.2B
-batch_size=64  # 16, 64
+batch_size=48  # 16, 48
 max_length=200
 language_target='en'
 text_col=''
