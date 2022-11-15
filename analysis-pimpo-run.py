@@ -25,7 +25,8 @@ parser.add_argument('-nmt', '--nmt_model', type=str,
                     help='Which neural machine translation model to use? "opus-mt", "m2m_100_1.2B", "m2m_100_418M" ')
 parser.add_argument('-max_l', '--max_length', type=int, #nargs='+',
                     help='max n tokens')
-
+parser.add_argument('-size', '--model_size', type=str,
+                    help='base or large')
 
 
 ## choose arguments depending on execution in terminal or in script for testing
@@ -55,9 +56,10 @@ VECTORIZER = args.vectorizer
 HYPOTHESIS = args.hypothesis
 MT_MODEL = args.nmt_model
 MODEL_MAX_LENGTH = args.max_length
+MODEL_SIZE = args.model_size
 
-SAMPLE_NO_TOPIC = 100_000
-SAMPLE_DF_TEST = 1_000
+SAMPLE_NO_TOPIC = 50_000  #100_000
+#SAMPLE_DF_TEST = 1_000
 
 ## set main arguments
 SEED_GLOBAL = 42
@@ -65,14 +67,18 @@ DATASET = "pimpo"
 
 TRAINING_DIRECTORY = f"results/{DATASET}"
 
-if (VECTORIZER == "multi") and (METHOD == "nli"):
+if (VECTORIZER == "multi") and (METHOD == "nli") and (MODEL_SIZE == "base"):
     MODEL_NAME = "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
-elif (VECTORIZER == "en") and (METHOD == "nli"):
+elif (VECTORIZER == "en") and (METHOD == "nli") and (MODEL_SIZE == "base"):
     MODEL_NAME = "MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli"  #"MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli-ling-wanli"  "MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli"
-elif (VECTORIZER == "multi") and (METHOD == "standard_dl"):
+elif (VECTORIZER == "multi") and (METHOD == "standard_dl") and (MODEL_SIZE == "base"):
     MODEL_NAME = "microsoft/mdeberta-v3-base"
-elif (VECTORIZER == "en") and (METHOD == "standard_dl"):
+elif (VECTORIZER == "en") and (METHOD == "standard_dl") and (MODEL_SIZE == "base"):
     MODEL_NAME = "microsoft/deberta-v3-base"  # microsoft/deberta-v3-large, "microsoft/deberta-v3-base"
+elif (VECTORIZER == "en") and (METHOD == "nli") and (MODEL_SIZE == "large"):
+    MODEL_NAME = "MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli-ling-wanli"
+elif (VECTORIZER == "en") and (METHOD == "standard_dl") and (MODEL_SIZE == "large"):
+    MODEL_NAME = "microsoft/deberta-v3-large"
 else:
     raise Exception(f"VECTORIZER {VECTORIZER} or METHOD {METHOD} not implemented")
 
@@ -168,7 +174,7 @@ df_train_samp1 = df_train.groupby(by="language_iso", as_index=False, group_keys=
 df_train_samp2 = df_train.groupby(by="language_iso", as_index=False, group_keys=False).apply(lambda x: x[x.label_text == "no_topic"].sample(n=min(len(x[x.label_text == "no_topic"]), MAX_SAMPLE_LANG), random_state=42))
 df_train = pd.concat([df_train_samp1, df_train_samp2])
 
-# reduce n no_topic data
+# for df_train reduce n no_topic data to same length as all topic data combined
 df_train_topic = df_train[df_train.label_text != "no_topic"]
 df_train_no_topic = df_train[df_train.label_text == "no_topic"].sample(n=min(len(df_train_topic), len(df_train[df_train.label_text == "no_topic"])), random_state=SEED_GLOBAL)
 df_train = pd.concat([df_train_topic, df_train_no_topic])
@@ -185,7 +191,7 @@ df_test = df_cl[~df_cl.index.isin(df_train.index)]
 assert len(df_train) + len(df_test) == len(df_cl)
 
 # sample for faster testing
-df_test = df_test.sample(n=min(SAMPLE_DF_TEST, len(df_test)), random_state=SEED_GLOBAL)
+#df_test = df_test.sample(n=min(SAMPLE_DF_TEST, len(df_test)), random_state=SEED_GLOBAL)
 
 
 ### format data if NLI
@@ -264,12 +270,15 @@ if METHOD == "standard_dl":
         n_steps += steps_one_epoch  # = steps_one_epoch
     print("Epochs: ", n_epochs)
     print("Steps: ", n_steps)
-    HYPER_PARAMS = {'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': n_epochs, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 180}
+    HYPER_PARAMS = {'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': n_epochs, 'seed': SEED_GLOBAL, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.06, 'weight_decay': 0.01, 'per_device_eval_batch_size': 200}  # "do_eval": False
 elif METHOD == "nli":
-    HYPER_PARAMS = {'lr_scheduler_type': 'linear', 'learning_rate': 2e-5, 'num_train_epochs': 20, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.40, 'weight_decay': 0.05, 'per_device_eval_batch_size': 180}
+    HYPER_PARAMS = {'lr_scheduler_type': 'linear', 'learning_rate': 2e-5, 'num_train_epochs': 20, 'seed': SEED_GLOBAL, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.40, 'weight_decay': 0.01, 'per_device_eval_batch_size': 200}  # "do_eval": False
 else:
     raise Exception("Method not implemented for hps")
 
+# based on paper https://arxiv.org/pdf/2111.09543.pdf
+if MODEL_SIZE == "large":
+    HYPER_PARAMS.update({"per_device_eval_batch_size": 80, 'learning_rate': 9e-6})
 
 
 ## create trainer
@@ -321,8 +330,8 @@ df_cl_concat["label_text_pred"] = df_cl_concat["label_pred"].map(label_text_map)
 langs_concat = "_".join(LANGUAGE_LST)
 
 #df_cl_concat.to_csv(f"./results/pimpo/df_pimpo_pred_{TASK}_{METHOD}_{HYPOTHESIS}_{VECTORIZER}_{MAX_SAMPLE_LANG}samp_{langs_concat}_{DATE}.csv", index=False)
-df_cl_concat.to_csv(f"./results/pimpo/df_pimpo_pred_{TASK}_{METHOD}_{HYPOTHESIS}_{VECTORIZER}_{MAX_SAMPLE_LANG}samp_{langs_concat}_{DATE}.zip",
-                    compression={"method": "zip", "archive_name": f"df_pimpo_pred_{TASK}_{METHOD}_{HYPOTHESIS}_{VECTORIZER}_{MAX_SAMPLE_LANG}samp_{langs_concat}_{DATE}.csv"}, index=False)
+df_cl_concat.to_csv(f"./results/pimpo/df_pimpo_pred_{TASK}_{METHOD}_{MODEL_SIZE}_{HYPOTHESIS}_{VECTORIZER}_{MAX_SAMPLE_LANG}samp_{langs_concat}_{DATE}.zip",
+                    compression={"method": "zip", "archive_name": f"df_pimpo_pred_{TASK}_{METHOD}_{MODEL_SIZE}_{HYPOTHESIS}_{VECTORIZER}_{MAX_SAMPLE_LANG}samp_{langs_concat}_{DATE}.csv"}, index=False)
 
 
 
