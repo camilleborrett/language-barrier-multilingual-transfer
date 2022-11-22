@@ -41,9 +41,9 @@ if len(sys.argv) > 1:
     print(value, "  ", key)
 else:
   # parse args if not in terminal, but in script
-  args = parser.parse_args(["--languages", "en-de", "--max_epochs", "2", "--task", "integration", "--vectorizer", "en",
-                            "--method", "nli", "--hypothesis", "long", "--nmt_model", "m2m_100_418M", "--max_length", "256",
-                            "--max_sample_lang", "50", "--study_date", "221111"])
+  args = parser.parse_args(["--languages", "en-de", "--max_epochs", "2", "--task", "immigration", "--vectorizer", "multi",
+                            "--method", "dl_embed", "--hypothesis", "long", "--nmt_model", "m2m_100_1.2B", "--max_length", "256",
+                            "--max_sample_lang", "100", "--study_date", "221111"])
 
 LANGUAGE_LST = args.languages.split("-")
 
@@ -55,9 +55,10 @@ METHOD = args.method
 VECTORIZER = args.vectorizer
 HYPOTHESIS = args.hypothesis
 MT_MODEL = args.nmt_model
-MODEL_MAX_LENGTH = args.max_length
+#MODEL_MAX_LENGTH = args.max_length
 MODEL_SIZE = args.model_size
 
+# !! align in all scripts
 SAMPLE_NO_TOPIC = 50_000  #100_000
 #SAMPLE_DF_TEST = 1_000
 
@@ -68,9 +69,9 @@ DATASET = "pimpo"
 TRAINING_DIRECTORY = f"results/{DATASET}"
 
 
-if (VECTORIZER == "en") and (METHOD == "transf_embed"):
+if (VECTORIZER == "en") and (METHOD == "dl_embed"):
     MODEL_NAME = "logistic"  #"transf_embed_en"
-elif (VECTORIZER == "multi") and (METHOD == "transf_embed"):
+elif (VECTORIZER == "multi") and (METHOD == "dl_embed"):
     MODEL_NAME = "logistic"  #"transf_embed_multi"
 else:
     raise Exception(f"VECTORIZER {VECTORIZER} or METHOD {METHOD} not implemented")
@@ -100,7 +101,7 @@ from helpers import compute_metrics_standard, clean_memory, compute_metrics_nli_
 
 
 ##### load dataset
-df = pd.read_csv(f"./data-clean/df_pimpo_samp_trans_{MT_MODEL}_embed_tfidf.zip")
+df = pd.read_csv(f"./data-clean/df_pimpo_samp_trans_{MT_MODEL}_embed_tfidf.zip", engine='python')
 
 
 ### inspect data
@@ -118,24 +119,26 @@ df_inspection_parfam = pd.DataFrame(inspection_parfam_dic)
 
 
 ### select training data
-# note that for this substantive use-case, it seems fine to predict also on training data,
-# because it is about the substantive outcome of the approach, not out-of-sample accuracy
 
 # choose bigger text window to improve performance and imitate annotation input
 if VECTORIZER == "multi":
-    df["text_prepared"] = df["text_original_trans_embed_multi"]
-    #if METHOD == "standard_dl":
-    #    df["text_prepared"] = df["text_preceding"].fillna('') + " " + df["text_original"] + " " + df["text_following"].fillna('')
-    #elif METHOD == "nli":
-    #    df["text_prepared"] = df["text_preceding"].fillna('') + '. The quote: "' + df["text_original"] + '". ' + df["text_following"].fillna('')
+    if METHOD == "standard_dl":
+        df["text_prepared"] = df["text_preceding"].fillna('') + " " + df["text_original"] + " " + df["text_following"].fillna('')
+    elif METHOD == "nli":
+        df["text_prepared"] = df["text_preceding"].fillna('') + '. The quote: "' + df["text_original"] + '". ' + df["text_following"].fillna('')
+    elif METHOD == "dl_embed":
+        df["text_prepared"] = df["text_concat_embed_multi"]
 elif VECTORIZER == "en":
-    df["text_prepared"] = df["text_original_trans_embed_en"]
-    #if METHOD == "standard_dl":
-    #    df["text_prepared"] = df["text_preceding_trans"].fillna('') + ' ' + df["text_original_trans"] + ' ' + df["text_following_trans"].fillna('')
-    #elif METHOD == "nli":
-    #    df["text_prepared"] = df["text_preceding_trans"].fillna('') + '. The quote: "' + df["text_original_trans"] + '". ' + df["text_following_trans"].fillna('')
+    if METHOD == "standard_dl":
+        df["text_prepared"] = df["text_preceding_trans"].fillna('') + ' ' + df["text_original_trans"] + ' ' + df["text_following_trans"].fillna('')
+    elif METHOD == "nli":
+        df["text_prepared"] = df["text_preceding_trans"].fillna('') + '. The quote: "' + df["text_original_trans"] + '". ' + df["text_following_trans"].fillna('')
+    elif METHOD == "dl_embed":
+        df["text_prepared"] = df["text_trans_concat_embed_en"]
 else:
     raise Exception(f"Vectorizer {VECTORIZER} not implemented.")
+
+
 
 # select task
 if TASK == "integration":
@@ -146,7 +149,7 @@ elif TASK == "immigration":
 # replace labels for other task with "no_topic"
 df_cl = df.copy(deep=True)
 df_cl["label_text"] = [label if label in task_label_text else "no_topic" for label in df.label_text]
-df_cl["label_text"].value_counts()
+print(df_cl["label_text"].value_counts())
 
 # adapt numeric label
 df_cl["label"] = pd.factorize(df_cl["label_text"], sort=True)[0]
@@ -174,7 +177,8 @@ df_train_topic = df_train[df_train.label_text != "no_topic"]
 df_train_no_topic = df_train[df_train.label_text == "no_topic"].sample(n=min(len(df_train_topic), len(df_train[df_train.label_text == "no_topic"])), random_state=SEED_GLOBAL)
 df_train = pd.concat([df_train_topic, df_train_no_topic])
 
-print(df_train.label_text.value_counts())
+print("\n", df_train.label_text.value_counts())
+print(df_train.language_iso.value_counts(), "\n")
 
 # avoid random overlap between topic and no-topic ?
 # ! not sure if this adds value - maybe I even want overlap to teach it to look only at the middle sentence? Or need to check overlap by 3 text columns ?
@@ -185,87 +189,89 @@ print(df_train.label_text.value_counts())
 df_test = df_cl[~df_cl.index.isin(df_train.index)]
 assert len(df_train) + len(df_test) == len(df_cl)
 
-# sample for faster testing
+# ! sample for faster testing
 #df_test = df_test.sample(n=min(SAMPLE_DF_TEST, len(df_test)), random_state=SEED_GLOBAL)
 
 
 
-#if METHOD == "standard_dl":
-#    df_train_format = df_train
-#    df_test_format = df_test
+if METHOD == "standard_dl":
+    df_train_format = df_train
+    df_test_format = df_test
 #elif METHOD == "nli":
-#    df_train_format = format_nli_trainset(df_train=df_train, hypo_label_dic=hypo_label_dic, random_seed=42)
-#    df_test_format = format_nli_testset(df_test=df_test, hypo_label_dic=hypo_label_dic)
-#if METHOD == "transf_embed":
-df_train_format = df_train
-df_test_format = df_test
+    #df_train_format = format_nli_trainset(df_train=df_train, hypo_label_dic=hypo_label_dic, random_seed=42)
+    #df_test_format = format_nli_testset(df_test=df_test, hypo_label_dic=hypo_label_dic)
+elif METHOD == "dl_embed":
+    df_train_format = df_train
+    df_test_format = df_test
 
 
 
 ##### train classifier
 
 ## ! do hp-search in separate script. should not take too long
+## hyperparameters for final tests
+# selective load one decent set of hps for testing
+#hp_study_dic = joblib.load("/Users/moritzlaurer/Dropbox/PhD/Papers/nli/snellius/NLI-experiments/results/manifesto-8/optuna_study_SVM_tfidf_01000samp_20221006.pkl")
+
+# select best hp based on hp-search
+n_sample_string = MAX_SAMPLE_LANG
+#n_sample_string = 300
+while len(str(n_sample_string)) <= 4:
+    n_sample_string = "0" + str(n_sample_string)
+
+import joblib
+hp_study_dic = joblib.load(f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{VECTORIZER}_{n_sample_string}samp_{DATASET}_{'-'.join(LANGUAGE_LST)}_{MT_MODEL}_{DATE}.pkl")
+hp_study_dic = next(iter(hp_study_dic.values()))  # unnest dic
+
+hyperparams = hp_study_dic['optuna_study'].best_trial.user_attrs["hyperparameters_all"]
 
 
+### text pre-processing
+# separate hyperparams for vectorizer and classifier.
+hyperparams_vectorizer = {key: value for key, value in hyperparams.items() if key in ["ngram_range", "max_df", "min_df", "analyzer"]}
+hyperparams_clf = {key: value for key, value in hyperparams.items() if key not in ["ngram_range", "max_df", "min_df", "analyzer"]}
+# in case I want to add tfidf later
+from sklearn.feature_extraction.text import TfidfVectorizer
+vectorizer_sklearn = TfidfVectorizer(lowercase=True, stop_words=None, norm="l2", use_idf=True, smooth_idf=True, **hyperparams_vectorizer)  # ngram_range=(1,2), max_df=0.9, min_df=0.02, token_pattern="(?u)\b\w\w+\b"
 
 
+# choose correct pre-processed text column here
+import ast
+if VECTORIZER == "tfidf":
+    # fit vectorizer on entire dataset - theoretically leads to some leakage on feature distribution in TFIDF (but is very fast, could be done for each test. And seems to be common practice) - OOV is actually relevant disadvantage of classical ML  #https://github.com/vanatteveldt/ecosent/blob/master/src/data-processing/19_svm_gridsearch.py
+    vectorizer_sklearn.fit(pd.concat([df_train_format.text_trans_concat_tfidf, df_test_format.text_trans_concat_tfidf]))
+    X_train = vectorizer_sklearn.transform(df_train_format.text_trans_concat_tfidf)
+    X_test = vectorizer_sklearn.transform(df_test_format.text_trans_concat_tfidf)
+elif "en" == VECTORIZER:
+    X_train = np.array([ast.literal_eval(lst) for lst in df_train_format.text_trans_concat_embed_en.astype('object')])
+    X_test = np.array([ast.literal_eval(lst) for lst in df_test_format.text_trans_concat_embed_en.astype('object')])
+elif "multi" == VECTORIZER:
+    X_train = np.array([ast.literal_eval(lst) for lst in df_train_format.text_concat_embed_multi.astype('object')])
+    X_test = np.array([ast.literal_eval(lst) for lst in df_test_format.text_concat_embed_multi.astype('object')])
 
-label_text_alphabetical = np.sort(df_cl.label_text.unique())
+y_train = df_train_format.label
+y_test = df_test_format.label
 
-model, tokenizer = load_model_tokenizer(model_name=MODEL_NAME, method=METHOD, label_text_alphabetical=label_text_alphabetical, model_max_length=MODEL_MAX_LENGTH)
-
-
-#### tokenize
-
-dataset = tokenize_datasets(df_train_samp=df_train_format, df_test=df_test_format, tokenizer=tokenizer, method=METHOD, max_length=MODEL_MAX_LENGTH)
-
-
-### create trainer
-
-## automatically calculate roughly adequate epochs for number of data points
-if METHOD == "standard_dl":
-    max_steps = 7_000  # value chosen to lead to roughly 45 epochs with 5k n_data, 23 with 10k, then decrease epochs
-    batch_size = 32
-    #min_epochs = 10
-    max_epochs = 50 #50  # good value from NLI paper experience for aroung 500 - 5k data
-    n_data = len(df_train_format)
-    steps_one_epoch = n_data / batch_size
-    n_epochs = 0
-    n_steps = 0
-    while (n_epochs < max_epochs) and (n_steps < max_steps):
-        n_epochs += 1
-        n_steps += steps_one_epoch  # = steps_one_epoch
-    print("Epochs: ", n_epochs)
-    print("Steps: ", n_steps)
-    HYPER_PARAMS = {'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': n_epochs, 'seed': SEED_GLOBAL, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.06, 'weight_decay': 0.01, 'per_device_eval_batch_size': 200}  # "do_eval": False
-elif METHOD == "nli":
-    HYPER_PARAMS = {'lr_scheduler_type': 'linear', 'learning_rate': 2e-5, 'num_train_epochs': 20, 'seed': SEED_GLOBAL, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.40, 'weight_decay': 0.01, 'per_device_eval_batch_size': 200}  # "do_eval": False
-else:
-    raise Exception("Method not implemented for hps")
-
-# based on paper https://arxiv.org/pdf/2111.09543.pdf
-if MODEL_SIZE == "large":
-    HYPER_PARAMS.update({"per_device_eval_batch_size": 80, 'learning_rate': 9e-6})
-
-
-## create trainer
-# FP16 if cuda and if not mDeBERTa
-fp16_bool = True if torch.cuda.is_available() else False
-if "mDeBERTa".lower() in MODEL_NAME.lower(): fp16_bool = False  # mDeBERTa does not support FP16 yet
-
-train_args = set_train_args(hyperparams_dic=HYPER_PARAMS, training_directory=TRAINING_DIRECTORY, disable_tqdm=False, evaluation_strategy="no", fp16=fp16_bool)
-
-trainer = create_trainer(model=model, tokenizer=tokenizer, encoded_dataset=dataset, train_args=train_args,
-                         method=METHOD, label_text_alphabetical=label_text_alphabetical)
-
-# train
-trainer.train()
+## initialise and train classifier
+from sklearn import svm, linear_model
+if MODEL_NAME == "SVM":
+    clf = svm.SVC(**hyperparams_clf)
+elif MODEL_NAME == "logistic":
+    clf = linear_model.LogisticRegression(**hyperparams_clf)
+clf.fit(X_train, y_train)
 
 
 
 ### Evaluate
 # test on test set
-results_test = trainer.evaluate(eval_dataset=dataset["test"])  # eval_dataset=encoded_dataset["test"]
+label_gold = y_test
+label_pred = clf.predict(X_test)
+
+### metrics
+from helpers import compute_metrics_classical_ml
+#results_test = trainer.evaluate(eval_dataset=dataset["test"])  # eval_dataset=encoded_dataset["test"]
+results_test = compute_metrics_classical_ml(label_pred, label_gold, label_text_alphabetical=np.sort(df_cl.label_text.unique()))
+
 print(results_test)
 
 # do prediction on entire corpus? No.
@@ -293,9 +299,18 @@ for i, row in df_cl_concat[~df_cl_concat.label_text.duplicated(keep='first')].it
 df_cl_concat["label_text_pred"] = df_cl_concat["label_pred"].map(label_text_map)
 
 
+## trim df to save storage
+df_cl_concat = df_cl_concat[['label', 'label_text', 'country_iso', 'language_iso', 'doc_id',
+                           'text_original', 'text_original_trans', 'text_preceding_trans', 'text_following_trans',
+                           # 'text_preceding', 'text_following', 'selection', 'certainty_selection', 'topic', 'certainty_topic', 'direction', 'certainty_direction',
+                           'rn', 'cmp_code', 'partyname', 'partyabbrev',
+                           'parfam', 'parfam_text', 'date', #'language_iso_fasttext', 'language_iso_trans',
+                           #'text_concat', 'text_concat_embed_multi', 'text_trans_concat',
+                           #'text_trans_concat_embed_en', 'text_trans_concat_tfidf', 'text_prepared',
+                           'label_pred', 'label_text_pred']]
+
 ## save data
 langs_concat = "_".join(LANGUAGE_LST)
-
 #df_cl_concat.to_csv(f"./results/pimpo/df_pimpo_pred_{TASK}_{METHOD}_{HYPOTHESIS}_{VECTORIZER}_{MAX_SAMPLE_LANG}samp_{langs_concat}_{DATE}.csv", index=False)
 df_cl_concat.to_csv(f"./results/pimpo/df_pimpo_pred_{TASK}_{METHOD}_{MODEL_SIZE}_{HYPOTHESIS}_{VECTORIZER}_{MAX_SAMPLE_LANG}samp_{langs_concat}_{DATE}.zip",
                     compression={"method": "zip", "archive_name": f"df_pimpo_pred_{TASK}_{METHOD}_{MODEL_SIZE}_{HYPOTHESIS}_{VECTORIZER}_{MAX_SAMPLE_LANG}samp_{langs_concat}_{DATE}.csv"}, index=False)

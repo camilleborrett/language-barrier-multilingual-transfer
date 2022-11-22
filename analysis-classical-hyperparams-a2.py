@@ -73,18 +73,19 @@ parser.add_argument('-cvh', '--n_cross_val_hyperparam', type=int, default=2,
                     help='How many times should optuna cross validate in a single trial?')
 
 # arguments for both hyperparam and test script
-parser.add_argument('-lang', '--languages', type=str, nargs='+',
-                    help='List of languages to iterate over. e.g. "en", "de", "es", "fr", "ko", "tr", "ru" ')
-parser.add_argument('-anchor', '--language_anchor', type=str,
-                    help='Anchor language to translate all texts to if not many2many. Default is "en"')
-parser.add_argument('-language_train', '--language_train', type=str, nargs='+',
+#parser.add_argument('-lang', '--languages', type=str, nargs='+',
+#                    help='List of languages to iterate over. e.g. "en", "de", "es", "fr", "ko", "tr", "ru" ')
+#parser.add_argument('-anchor', '--language_anchor', type=str,
+#                    help='Anchor language to translate all texts to if not many2many. Default is "en"')
+#parser.add_argument('-language_train', '--language_train', type=str, nargs='+',
+parser.add_argument('-languages', '--languages', type=str,  #nargs='+',
                     help='What language should the training set be in?. Default is "en"')
 parser.add_argument('-augment', '--augmentation_nmt', type=str,
                     help='Whether and how to augment the data with machine translation (MT).')
 
 parser.add_argument('-ds', '--dataset', type=str,
                     help='Name of dataset. Can be one of: "manifesto-8" ')
-parser.add_argument('-samp', '--sample_interval', type=int, nargs='+',
+parser.add_argument('-samp', '--max_sample_lang', type=int, nargs='+',
                     help='Interval of sample sizes to test.')
 parser.add_argument('-m', '--method', type=str,
                     help='Method. One of "classical_ml"')
@@ -92,12 +93,13 @@ parser.add_argument('-model', '--model', type=str,
                     help='Model name. String must lead to any Hugging Face model or "SVM" or "logistic". Must fit to "method" argument.')
 parser.add_argument('-vectorizer', '--vectorizer', type=str,
                     help='How to vectorize text. Options: "tfidf" or "embeddings"')
-parser.add_argument('-hp_date', '--hyperparam_study_date', type=str,
+parser.add_argument('-hp_date', '--study_date', type=str,
                     help='Date string to specifiy which hyperparameter run should be selected. e.g. "20220304"')
 
 parser.add_argument('-nmt', '--nmt_model', type=str,
                     help='Which neural machine translation model to use? "opus-mt", "m2m_100_1.2B", "m2m_100_418M" ')
-
+parser.add_argument('-ta', '--task', type=str,
+                    help='task about integration or immigration?')
 
 
 ### choose arguments depending on execution in terminal or in script for testing
@@ -114,15 +116,16 @@ if EXECUTION_TERMINAL == True:
 elif EXECUTION_TERMINAL == False:
   # parse args if not in terminal, but in script
   args = parser.parse_args(["--n_trials", "3", "--n_trials_sampling", "2", "--n_trials_pruning", "2", "--n_cross_val_hyperparam", "2",  #"--context",
-                            "--dataset", "pimpo",
-                            "--languages", 'sv', 'no', 'da', 'fi', 'nl', 'es', 'de', 'en', 'fr', #  "en", "de", "es", "fr", "tr", "ru", "ko",  # 'sv' 'no' 'da' 'fi' 'nl' 'es' 'de' 'en' 'fr'
-                            "--language_anchor", "en", "--language_train", "en",
-                            "--augmentation_nmt", "one2anchor",  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
-                            "--sample_interval", "100",  #"100", "500", "1000", #"2500", "5000", #"10000",
-                            "--method", "classical_ml", "--model", "logistic",  # SVM, logistic
+                            #"--dataset", "pimpo",
+                            #"--languages", 'sv', 'no', 'da', 'fi', 'nl', 'es', 'de', 'en', 'fr', #  "en", "de", "es", "fr", "tr", "ru", "ko",  # 'sv' 'no' 'da' 'fi' 'nl' 'es' 'de' 'en' 'fr'
+                            #"--language_anchor", "en",
+                            "--languages", "en", "--task", "immigration",
+                            #"--augmentation_nmt", "one2anchor",  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
+                            "--max_sample_lang", "100",  #"100", "500", "1000", #"2500", "5000", #"10000",
+                            "--method", "dl_embed", #"--model", "logistic",  # SVM, logistic
                             "--vectorizer", "multi",  # "tfidf", "en", "multi"
                             "--nmt_model", "m2m_100_1.2B",  # "m2m_100_1.2B", "m2m_100_418M"
-                            "--hyperparam_study_date", "20221111"])
+                            "--study_date", "221111"])
 
 
 ### args only for hyperparameter tuning
@@ -134,21 +137,25 @@ CROSS_VALIDATION_REPETITIONS_HYPERPARAM = args.n_cross_val_hyperparam
 
 ### args for both hyperparameter tuning and test runs
 # choose dataset
-DATASET = args.dataset  # "sentiment-news-econ" "coronanet" "cap-us-court" "cap-sotu" "manifesto-8" "manifesto-military" "manifesto-protectionism" "manifesto-morality" "manifesto-nationalway" "manifesto-44" "manifesto-complex"
+#DATASET = args.dataset  # "sentiment-news-econ" "coronanet" "cap-us-court" "cap-sotu" "manifesto-8" "manifesto-military" "manifesto-protectionism" "manifesto-morality" "manifesto-nationalway" "manifesto-44" "manifesto-complex"
+DATASET = "pimpo"
+TASK = args.task
 #LANGUAGES = args.languages
 #LANGUAGES = LANGUAGES
-LANGUAGE_TRAIN = args.language_train
-LANGUAGE_ANCHOR = args.language_anchor
+LANGUAGE_LST = args.languages.split("-")
+#LANGUAGE_TRAIN = args.languages
+#LANGUAGE_TRAIN = LANGUAGE_TRAIN.split("-")
+#LANGUAGE_ANCHOR = args.language_anchor
 #AUGMENTATION = args.augmentation_nmt
 
-N_SAMPLE_DEV = args.sample_interval   # [100, 500, 1000, 2500, 5000, 10_000]  999_999 = full dataset  # cannot include 0 here to find best hypothesis template for zero-shot, because 0-shot assumes no dev set
+N_SAMPLE_DEV = args.max_sample_lang   # [100, 500, 1000, 2500, 5000, 10_000]  999_999 = full dataset  # cannot include 0 here to find best hypothesis template for zero-shot, because 0-shot assumes no dev set
 VECTORIZER = args.vectorizer
 
 # decide on model to run
-METHOD = args.method  # "standard_dl", "nli", "classical_ml"
-MODEL_NAME = args.model  # "SVM"
+METHOD = args.method  # "standard_dl", "nli", "dl_embed"
+MODEL_NAME = "logistic"  #args.model  # "SVM"
 
-HYPERPARAM_STUDY_DATE = args.hyperparam_study_date  #"20220304"
+HYPERPARAM_STUDY_DATE = args.study_date  #"20220304"
 NMT_MODEL = args.nmt_model
 
 
@@ -157,11 +164,14 @@ NMT_MODEL = args.nmt_model
 
 # ## Load data
 if "pimpo" in DATASET:
-  df_cl = pd.read_csv("./data-clean/df_pimpo_all.zip")
-  df_train = pd.read_csv(f"./data-clean/df_{DATASET}_samp_trans_{NMT_MODEL}_embed_tfidf.zip")
+  df_cl = pd.read_csv("./data-clean/df_pimpo_all.zip", engine='python')
+  df_train = pd.read_csv(f"./data-clean/df_{DATASET}_samp_trans_{NMT_MODEL}_embed_tfidf.zip", engine='python')
   # only doing analysis on immigration
-  df_cl = df_cl[df_cl.label_text.isin(['no_topic', 'immigration_sceptical', 'immigration_supportive', 'immigration_neutral'])]  # 'integration_neutral', 'integration_sceptical', 'integration_supportive'
-  df_train = df_train[df_train.label_text.isin(['no_topic', 'immigration_sceptical', 'immigration_supportive', 'immigration_neutral'])]  # 'integration_neutral', 'integration_sceptical', 'integration_supportive'
+  if TASK == "immigration":
+    df_cl = df_cl[df_cl.label_text.isin(['no_topic', 'immigration_sceptical', 'immigration_supportive', 'immigration_neutral'])]  # 'integration_neutral', 'integration_sceptical', 'integration_supportive'
+    df_train = df_train[df_train.label_text.isin(['no_topic', 'immigration_sceptical', 'immigration_supportive', 'immigration_neutral'])]  # 'integration_neutral', 'integration_sceptical', 'integration_supportive'
+  else:
+      raise Exception(f"Task {TASK} not implemented.")
 else:
   raise Exception(f"Dataset name not found: {DATASET}")
 
@@ -314,10 +324,10 @@ def optuna_objective(trial, lang=None, n_sample=None, df_train=None, df=None):  
     #df_dev = df_train[df_train.rn.isin(df_dev_ids)]
     print(f"Final train test length after cross-val split: len(df_train_lang_samp) = {len(df_train_split)}, len(df_dev_lang_samp) {len(df_dev)}.")
 
-    #df_train_scenario, df_dev_scenario = select_data_for_scenario_hp_search(df_train=df_train_split, df_dev=df_dev, lang=lang, augmentation=AUGMENTATION, vectorizer=VECTORIZER, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR)
+    #df_train_scenario, df_dev_scenario = select_data_for_scenario_hp_search(df_train=df_train_split, df_dev=df_dev, lang=lang, augmentation=AUGMENTATION, vectorizer=VECTORIZER, language_train=LANGUAGE_LST, language_anchor=LANGUAGE_ANCHOR)
     # no augmentation here, so can just select by training languages
-    df_train_scenario = df_train_split[df_train_split.language_iso.isin(LANGUAGE_TRAIN)]
-    df_dev_scenario = df_dev[df_dev.language_iso.isin(LANGUAGE_TRAIN)]
+    df_train_scenario = df_train_split[df_train_split.language_iso.isin(LANGUAGE_LST)]
+    df_dev_scenario = df_dev[df_dev.language_iso.isin(LANGUAGE_LST)]
 
     ## take sample in accordance with scenario
     #df_train_scenario_samp, df_dev_scenario_samp = sample_for_scenario_hp(df_train_scenario=df_train_scenario, df_test_scenario=df_dev_scenario,
@@ -342,7 +352,7 @@ def optuna_objective(trial, lang=None, n_sample=None, df_train=None, df=None):  
     print("\n")
 
     ### data augmentation on sample for multiling model + MT scenarios
-    #df_train_scenario_samp_augment = data_augmentation(df_train_scenario_samp=df_train_scenario_samp, df_train=df_train_split, lang=lang, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR, augmentation=AUGMENTATION, vectorizer=VECTORIZER, dataset=DATASET)
+    #df_train_scenario_samp_augment = data_augmentation(df_train_scenario_samp=df_train_scenario_samp, df_train=df_train_split, lang=lang, language_train=LANGUAGE_LST, language_anchor=LANGUAGE_ANCHOR, augmentation=AUGMENTATION, vectorizer=VECTORIZER, dataset=DATASET)
     #print("Number of training examples after possible augmentation: ", len(df_train_scenario_samp_augment))
     #print("Label distribution for df_train_scenario_samp_augment: ", df_train_scenario_samp_augment.label_text.value_counts())
 
@@ -350,7 +360,7 @@ def optuna_objective(trial, lang=None, n_sample=None, df_train=None, df=None):  
     clean_memory()
     ## choose correct pre-processed text column here
     # possible vectorizers: "tfidf", "embeddings-en", "embeddings-multi"
-    #X_train, X_test = choose_preprocessed_text(df_train_scenario_samp_augment=df_train_scenario_samp, df_test_scenario=df_dev_scenario_samp, augmentation=AUGMENTATION, vectorizer=VECTORIZER, vectorizer_sklearn=vectorizer_sklearn, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR, method=METHOD)
+    #X_train, X_test = choose_preprocessed_text(df_train_scenario_samp_augment=df_train_scenario_samp, df_test_scenario=df_dev_scenario_samp, augmentation=AUGMENTATION, vectorizer=VECTORIZER, vectorizer_sklearn=vectorizer_sklearn, language_train=LANGUAGE_LST, language_anchor=LANGUAGE_ANCHOR, method=METHOD)
     if VECTORIZER == "tfidf":
         # fit vectorizer on entire dataset - theoretically leads to some leakage on feature distribution in TFIDF (but is very fast, could be done for each test. And seems to be common practice) - OOV is actually relevant disadvantage of classical ML  #https://github.com/vanatteveldt/ecosent/blob/master/src/data-processing/19_svm_gridsearch.py
         vectorizer_sklearn.fit(pd.concat([df_train_scenario_samp.text_trans_concat_tfidf, df_dev_scenario_samp.text_trans_concat_tfidf]))
@@ -440,9 +450,9 @@ for n_sample in N_SAMPLE_DEV:
 
     study = run_study(n_sample=n_sample)  #lang=lang
 
-    print("Study params: ", LANGUAGE_TRAIN, f" {VECTORIZER}_{MODEL_NAME.split('/')[-1]}_{DATASET}_{n_sample}")
+    print("Study params: ", LANGUAGE_LST, f" {VECTORIZER}_{MODEL_NAME.split('/')[-1]}_{DATASET}_{n_sample}")
     print("Best study value: ", study.best_value)
-    hp_study_dic_lang = {"language_train": LANGUAGE_TRAIN, "vectorizer": VECTORIZER, "augmentation": None, "method": METHOD, "n_sample": n_sample, "dataset": DATASET, "algorithm": MODEL_NAME, "nmt_model": NMT_MODEL, "optuna_study": study}
+    hp_study_dic_lang = {"language_train": LANGUAGE_LST, "vectorizer": VECTORIZER, "augmentation": None, "method": METHOD, "n_sample": n_sample, "dataset": DATASET, "algorithm": MODEL_NAME, "nmt_model": NMT_MODEL, "optuna_study": study}
     hp_study_dic_scenario.update(hp_study_dic_lang)
 
     hp_study_dic_scenario = {f"{VECTORIZER}_{MODEL_NAME.split('/')[-1]}_{DATASET}_{n_sample}_{NMT_MODEL}": hp_study_dic_scenario}
@@ -452,7 +462,7 @@ for n_sample in N_SAMPLE_DEV:
     while len(str(n_sample)) <= 4:
         n_sample = "0" + str(n_sample)
 
-    lang_str = "-".join(LANGUAGE_TRAIN)
+    lang_str = "-".join(LANGUAGE_LST)
 
     ## save studies
     if EXECUTION_TERMINAL == True:

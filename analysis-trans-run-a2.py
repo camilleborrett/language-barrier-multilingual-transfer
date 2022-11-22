@@ -58,6 +58,7 @@ MT_MODEL = args.nmt_model
 MODEL_MAX_LENGTH = args.max_length
 MODEL_SIZE = args.model_size
 
+# !! align in all scripts
 SAMPLE_NO_TOPIC = 50_000  #100_000
 #SAMPLE_DF_TEST = 1_000
 
@@ -126,8 +127,6 @@ df_inspection_parfam = pd.DataFrame(inspection_parfam_dic)
 
 
 ### select training data
-# note that for this substantive use-case, it seems fine to predict also on training data,
-# because it is about the substantive outcome of the approach, not out-of-sample accuracy
 
 # choose bigger text window to improve performance and imitate annotation input
 if VECTORIZER == "multi":
@@ -135,13 +134,18 @@ if VECTORIZER == "multi":
         df["text_prepared"] = df["text_preceding"].fillna('') + " " + df["text_original"] + " " + df["text_following"].fillna('')
     elif METHOD == "nli":
         df["text_prepared"] = df["text_preceding"].fillna('') + '. The quote: "' + df["text_original"] + '". ' + df["text_following"].fillna('')
+    elif METHOD == "dl_embed":
+        df["text_prepared"] = df["text_concat_embed_multi"]
 elif VECTORIZER == "en":
     if METHOD == "standard_dl":
         df["text_prepared"] = df["text_preceding_trans"].fillna('') + ' ' + df["text_original_trans"] + ' ' + df["text_following_trans"].fillna('')
     elif METHOD == "nli":
         df["text_prepared"] = df["text_preceding_trans"].fillna('') + '. The quote: "' + df["text_original_trans"] + '". ' + df["text_following_trans"].fillna('')
+    elif METHOD == "dl_embed":
+        df["text_prepared"] = df["text_trans_concat_embed_en"]
 else:
     raise Exception(f"Vectorizer {VECTORIZER} not implemented.")
+
 
 # select task
 if TASK == "integration":
@@ -152,7 +156,7 @@ elif TASK == "immigration":
 # replace labels for other task with "no_topic"
 df_cl = df.copy(deep=True)
 df_cl["label_text"] = [label if label in task_label_text else "no_topic" for label in df.label_text]
-df_cl["label_text"].value_counts()
+print(df_cl["label_text"].value_counts())
 
 # adapt numeric label
 df_cl["label"] = pd.factorize(df_cl["label_text"], sort=True)[0]
@@ -191,7 +195,7 @@ print(df_train.label_text.value_counts())
 df_test = df_cl[~df_cl.index.isin(df_train.index)]
 assert len(df_train) + len(df_test) == len(df_cl)
 
-# sample for faster testing
+# ! sample for faster testing
 #df_test = df_test.sample(n=min(SAMPLE_DF_TEST, len(df_test)), random_state=SEED_GLOBAL)
 
 
@@ -241,7 +245,9 @@ if METHOD == "standard_dl":
 elif METHOD == "nli":
     df_train_format = format_nli_trainset(df_train=df_train, hypo_label_dic=hypo_label_dic, random_seed=42)
     df_test_format = format_nli_testset(df_test=df_test, hypo_label_dic=hypo_label_dic)
-
+elif METHOD == "dl_embed":
+    df_train_format = df_train
+    df_test_format = df_test
 
 ##### train classifier
 label_text_alphabetical = np.sort(df_cl.label_text.unique())
@@ -327,9 +333,19 @@ for i, row in df_cl_concat[~df_cl_concat.label_text.duplicated(keep='first')].it
 df_cl_concat["label_text_pred"] = df_cl_concat["label_pred"].map(label_text_map)
 
 
+## trim df to save storage
+df_cl_concat = df_cl_concat[['label', 'label_text', 'country_iso', 'language_iso', 'doc_id',
+                           'text_original', 'text_original_trans', 'text_preceding_trans', 'text_following_trans',
+                           # 'text_preceding', 'text_following', 'selection', 'certainty_selection', 'topic', 'certainty_topic', 'direction', 'certainty_direction',
+                           'rn', 'cmp_code', 'partyname', 'partyabbrev',
+                           'parfam', 'parfam_text', 'date', #'language_iso_fasttext', 'language_iso_trans',
+                           #'text_concat', 'text_concat_embed_multi', 'text_trans_concat',
+                           #'text_trans_concat_embed_en', 'text_trans_concat_tfidf', 'text_prepared',
+                           'label_pred', 'label_text_pred']]
+
+
 ## save data
 langs_concat = "_".join(LANGUAGE_LST)
-
 #df_cl_concat.to_csv(f"./results/pimpo/df_pimpo_pred_{TASK}_{METHOD}_{HYPOTHESIS}_{VECTORIZER}_{MAX_SAMPLE_LANG}samp_{langs_concat}_{DATE}.csv", index=False)
 df_cl_concat.to_csv(f"./results/pimpo/df_pimpo_pred_{TASK}_{METHOD}_{MODEL_SIZE}_{HYPOTHESIS}_{VECTORIZER}_{MAX_SAMPLE_LANG}samp_{langs_concat}_{DATE}.zip",
                     compression={"method": "zip", "archive_name": f"df_pimpo_pred_{TASK}_{METHOD}_{MODEL_SIZE}_{HYPOTHESIS}_{VECTORIZER}_{MAX_SAMPLE_LANG}samp_{langs_concat}_{DATE}.csv"}, index=False)

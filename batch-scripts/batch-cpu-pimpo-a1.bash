@@ -8,7 +8,6 @@
 #SBATCH --ntasks=32
 
 # Loading modules for Snellius
-:'
 module load 2021
 module load Python/3.9.5-GCCcore-10.3.0
 
@@ -18,7 +17,7 @@ cd ./multilingual-repo
 # install packages
 pip install --upgrade pip
 pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cpu
-pip install -r requirements.txt'
+pip install -r requirements.txt
 
 ## for local run
 #bash ./batch-scripts/batch-cpu.bash
