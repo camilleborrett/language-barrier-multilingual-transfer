@@ -74,7 +74,7 @@ if DATASET == "pimpo_samp":
     df["text_concat"] = df.text_preceding.fillna("") + " " + df.text_original.fillna("") + " " + df.text_following.fillna("")
     embeddings_multi = model_multiling.encode(df["text_concat"], convert_to_tensor=False)
     df["text_concat_embed_multi"] = embeddings_multi.tolist()
-elif "manifesto-8_samp" in DATASET:
+elif ("manifesto-8_samp" in DATASET) or ("pimpo_samp_a1" in DATASET):
     # not using concat texts for manifesto for simplicity
     embeddings_multi = model_multiling.encode(df.text_original_trans, convert_to_tensor=False)
     df["text_original_trans_embed_multi"] = embeddings_multi.tolist()
@@ -89,7 +89,7 @@ if DATASET == "pimpo_samp":
     df["text_trans_concat_embed_en"] = embeddings_en.tolist()
     # harmonize final df name
     df_embed = df
-elif "manifesto-8_samp" in DATASET:
+elif ("manifesto-8_samp" in DATASET) or ("pimpo_samp_a1" in DATASET) :
     text_en = df[df.language_iso_trans == "en"].text_original_trans
     text_en_index = df[df.language_iso_trans == "en"].text_original_trans.index  # saving index for merge below
     # embed

@@ -138,12 +138,16 @@ def select_data_for_scenario_final_test(df_train=None, df_test=None, lang=None, 
 
 
 ### data augmentation for multiling models + translation scenarios
-def data_augmentation(df_train_scenario_samp=None, df_train=None, lang=None, augmentation=None, vectorizer=None, language_train=None, language_anchor=None):
+def data_augmentation(df_train_scenario_samp=None, df_train=None, lang=None, augmentation=None, vectorizer=None, language_train=None, language_anchor=None, dataset=None):
     #global sample_sent_id
     #global df_train_augment
+    if "manifesto" in dataset:
+        unique_sentence_id = "sentence_id"
+    elif "pimpo" in dataset:
+        unique_sentence_id = "rn"
 
     ## single language text scenarios
-    sample_sent_id = df_train_scenario_samp.sentence_id.unique()
+    sample_sent_id = df_train_scenario_samp[unique_sentence_id].unique()
     if augmentation == "no-nmt-single":
         df_train_scenario_samp_augment = df_train_scenario_samp.copy(deep=True)
     elif augmentation == "one2anchor":
@@ -152,13 +156,13 @@ def data_augmentation(df_train_scenario_samp=None, df_train=None, lang=None, aug
         elif "multi" in vectorizer:
             # augment by combining texts from train language with texts from train translated to target language
             df_train_augment = df_train[(((df_train.language_iso == language_train) & (df_train.language_iso_trans == language_train)) | ((df_train.language_iso == language_train) & (df_train.language_iso_trans == lang)))].copy(deep=True)
-            df_train_scenario_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)
+            df_train_scenario_samp_augment = df_train_augment[df_train_augment[unique_sentence_id].isin(sample_sent_id)].copy(deep=True)
         else:
             raise Exception("Issue with vectorizer")
     elif augmentation == "one2many":
         if "multi" in vectorizer:
             df_train_augment = df_train.query("language_iso == @language_train").copy(deep=True)  # can use all translations and original text (for single train lang) here
-            df_train_scenario_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
+            df_train_scenario_samp_augment = df_train_augment[df_train_augment[unique_sentence_id].isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
         else:
             raise Exception("augmentation == 'X2many' only works for multilingual vectorization")
     ## multiple language text scenarios
@@ -170,32 +174,50 @@ def data_augmentation(df_train_scenario_samp=None, df_train=None, lang=None, aug
         elif "multi" in vectorizer:
             # already have all original languages in the scenario. augmenting it with translated (to anchor) texts here. e.g. for 7*6=3500 original texts, adding 6*6=3000 texts, all translated to anchor (except anchor texts)
             df_train_augment = df_train[(df_train.language_iso == df_train.language_iso_trans) | (df_train.language_iso_trans == language_anchor)].copy(deep=True)
-            df_train_scenario_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
+            df_train_scenario_samp_augment = df_train_augment[df_train_augment[unique_sentence_id].isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
     elif augmentation == "many2many":
         if "multi" not in vectorizer:
             df_train_scenario_samp_augment = df_train_scenario_samp.copy(deep=True)
         elif "multi" in vectorizer:
             # already have all original languages in the scenario. augmenting it with all other translated texts
             df_train_augment = df_train.copy(deep=True)
-            df_train_scenario_samp_augment = df_train_augment[df_train_augment.sentence_id.isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
+            df_train_scenario_samp_augment = df_train_augment[df_train_augment[unique_sentence_id].isin(sample_sent_id)].copy(deep=True)  # training on both original text and anchor
         #else:
         #    raise Exception(f"augmentation == {augmentation} only works for multilingual vectorization")
     return df_train_scenario_samp_augment
 
 
 
-def sample_for_scenario(df_train_scenario=None, df_test_scenario=None, n_sample=None, test_size=None, augmentation=None, vectorizer=None, seed=None, lang=None):
+def sample_for_scenario_hp(df_train_scenario=None, df_test_scenario=None, n_sample=None, test_size=None, augmentation=None, vectorizer=None, seed=None, lang=None, dataset=None):
+    if "manifesto" in dataset:
+        unique_sentence_id = "sentence_id"
+    elif "pimpo" in dataset:
+        unique_sentence_id = "rn"
+        # also pre-sample for pimpo given high data imbalance. Taking sample of equal size for topics and no-topic
+        # sampling on sentence_ids in case sentence was augmented in some scenarios
+        n_no_topic_or_topic = int(n_sample / 2)
+        df_train_scenario_samp_ids = df_train_scenario.groupby(by="language_iso", as_index=True, group_keys=True).apply(
+            lambda x: pd.concat([x[x.label_text == "no_topic"].sample(n=min(n_no_topic_or_topic, len(x[x.label_text != "no_topic"])), random_state=seed)[unique_sentence_id],
+                                 x[x.label_text != "no_topic"].sample(n=min(n_no_topic_or_topic, len(x[x.label_text != "no_topic"])), random_state=seed)[unique_sentence_id]
+                                 ])).squeeze()
+        df_test_scenario_samp_ids = df_test_scenario.groupby(by="language_iso", as_index=True, group_keys=True).apply(
+            lambda x: pd.concat([x[x.label_text == "no_topic"].sample(n=min(n_no_topic_or_topic, len(x[x.label_text != "no_topic"])), random_state=seed)[unique_sentence_id],
+                                 x[x.label_text != "no_topic"].sample(n=min(n_no_topic_or_topic, len(x[x.label_text != "no_topic"])), random_state=seed)[unique_sentence_id]
+                                 ])).squeeze()
+        df_train_scenario = df_train_scenario[df_train_scenario[unique_sentence_id].isin(df_train_scenario_samp_ids)]
+        df_test_scenario = df_test_scenario[df_test_scenario[unique_sentence_id].isin(df_test_scenario_samp_ids)]
+
     if n_sample == 999_999:
         df_train_scenario_samp = df_train_scenario.copy(deep=True)
         df_test_scenario_samp = df_test_scenario.copy(deep=True)
     elif augmentation in ["no-nmt-single", "one2anchor", "one2many"]:
-        df_train_scenario_samp_ids = df_train_scenario.sentence_id.sample(n=min(int(n_sample * (1-test_size)), len(df_train_scenario)), random_state=seed).copy(deep=True)
-        df_test_scenario_samp_ids = df_test_scenario.sentence_id.sample(n=min(int(n_sample * test_size), len(df_test_scenario)), random_state=seed).copy(deep=True)
-        df_train_scenario_samp = df_train_scenario[df_train_scenario.sentence_id.isin(df_train_scenario_samp_ids)]
-        df_test_scenario_samp = df_test_scenario[df_test_scenario.sentence_id.isin(df_test_scenario_samp_ids)]
+        df_train_scenario_samp_ids = df_train_scenario[unique_sentence_id].sample(n=min(int(n_sample * (1-test_size)), len(df_train_scenario)), random_state=seed).copy(deep=True)
+        df_test_scenario_samp_ids = df_test_scenario[unique_sentence_id].sample(n=min(int(n_sample * test_size), len(df_test_scenario)), random_state=seed).copy(deep=True)
+        df_train_scenario_samp = df_train_scenario[df_train_scenario[unique_sentence_id].isin(df_train_scenario_samp_ids)]
+        df_test_scenario_samp = df_test_scenario[df_test_scenario[unique_sentence_id].isin(df_test_scenario_samp_ids)]
     elif augmentation in ["no-nmt-many", "many2anchor", "many2many"]:
-        df_train_scenario_samp_ids = df_train_scenario.groupby(by="language_iso", group_keys=True, as_index=True).apply(lambda x: x.sentence_id.sample(n=min(int(n_sample * (1-test_size)), len(x)), random_state=seed))
-        df_test_scenario_samp_ids = df_test_scenario.groupby(by="language_iso", group_keys=True, as_index=True).apply(lambda x: x.sentence_id.sample(n=min(int(n_sample * test_size), len(x)), random_state=seed))
+        df_train_scenario_samp_ids = df_train_scenario.groupby(by="language_iso", group_keys=True, as_index=True).apply(lambda x: x[unique_sentence_id].sample(n=min(int(n_sample * (1-test_size)), len(x)), random_state=seed))
+        df_test_scenario_samp_ids = df_test_scenario.groupby(by="language_iso", group_keys=True, as_index=True).apply(lambda x: x[unique_sentence_id].sample(n=min(int(n_sample * test_size), len(x)), random_state=seed))
         if augmentation in ["no-nmt-many"] and vectorizer in ["tfidf", "embeddings-en"]:
             # unelegant - need to extract row with ids from df - when only run on one language, groupby returns df with separate rows for each lang  (only one lang), but need just one series with all ids
             df_train_scenario_samp_ids = df_train_scenario_samp_ids.loc[lang]
@@ -203,12 +225,47 @@ def sample_for_scenario(df_train_scenario=None, df_test_scenario=None, n_sample=
         elif augmentation in ["many2many"] and vectorizer in ["tfidf", "embeddings-en"]:
             # unelegant - need to extract row with ids from df - when only run on one language, groupby returns df with separate rows for each lang  (only one lang), but need just one series with all ids
             df_test_scenario_samp_ids = df_test_scenario_samp_ids.loc[lang]
-        df_train_scenario_samp = df_train_scenario[df_train_scenario.sentence_id.isin(df_train_scenario_samp_ids)]
-        df_test_scenario_samp = df_test_scenario[df_test_scenario.sentence_id.isin(df_test_scenario_samp_ids)]
+        df_train_scenario_samp = df_train_scenario[df_train_scenario[unique_sentence_id].isin(df_train_scenario_samp_ids)]
+        df_test_scenario_samp = df_test_scenario[df_test_scenario[unique_sentence_id].isin(df_test_scenario_samp_ids)]
     else:
         raise Exception(f"No implementation/issue scenario")
+
     return df_train_scenario_samp, df_test_scenario_samp
 
+
+## function unnecessary, because augmentation only happens afterwards. and function not tested properly, probably mistakes
+"""def sample_for_scenario_final(df_train_scenario=None, n_sample=None, augmentation=None, vectorizer=None, seed=None, lang=None, dataset=None):
+    if "manifesto" in dataset:
+        unique_sentence_id = "sentence_id"
+    elif "pimpo" in dataset:
+        unique_sentence_id = "rn"
+        # also pre-sample for pimpo given high data imbalance. Taking sample of equal size for topics and no-topic
+        # sampling on sentence_ids in case sentence was augmented in some scenarios
+        n_no_topic_or_topic = int(n_sample / 2)
+        df_train_scenario_samp_ids = df_train_scenario.groupby(by="language_iso", as_index=True, group_keys=True).apply(
+            lambda x: pd.concat([x[x.label_text == "no_topic"].sample(n=min(n_no_topic_or_topic, len(x[x.label_text != "no_topic"])), random_state=seed)[unique_sentence_id],
+                                 x[x.label_text != "no_topic"].sample(n=min(n_no_topic_or_topic, len(x[x.label_text != "no_topic"])), random_state=seed)[unique_sentence_id]
+                                 ])).squeeze
+        df_train_scenario = df_train_scenario[df_train_scenario[unique_sentence_id].isin(df_train_scenario_samp_ids)]
+
+    if n_sample == 999_999:
+        df_train_scenario_samp = df_train_scenario.copy(deep=True)
+    elif augmentation in ["no-nmt-single", "one2anchor", "one2many"]:
+        df_train_scenario_samp_ids = df_train_scenario[unique_sentence_id].sample(n=min(n_sample, len(df_train_scenario)), random_state=seed).copy(deep=True)
+        df_train_scenario_samp = df_train_scenario[df_train_scenario[unique_sentence_id].isin(df_train_scenario_samp_ids)]
+    elif augmentation in ["no-nmt-many", "many2anchor", "many2many"]:
+        df_train_scenario_samp_ids = df_train_scenario.groupby(by="language_iso", group_keys=True, as_index=True).apply(lambda x: x[unique_sentence_id].sample(n=min(n_sample, len(x)), random_state=seed))
+        if augmentation in ["no-nmt-many"] and vectorizer in ["tfidf", "embeddings-en"]:
+            # unelegant - need to extract row with ids from df - when only run on one language, groupby returns df with separate rows for each lang  (only one lang), but need just one series with all ids
+            df_train_scenario_samp_ids = df_train_scenario_samp_ids.loc[lang]
+        #elif augmentation in ["many2many"] and vectorizer in ["tfidf", "embeddings-en"]:
+            # unelegant - need to extract row with ids from df - when only run on one language, groupby returns df with separate rows for each lang  (only one lang), but need just one series with all ids
+        df_train_scenario_samp = df_train_scenario[df_train_scenario[unique_sentence_id].isin(df_train_scenario_samp_ids)]
+    else:
+        raise Exception(f"No implementation/issue scenario")
+
+    return df_train_scenario_samp
+"""
 
 def choose_preprocessed_text(df_train_scenario_samp_augment=None, df_test_scenario=None, augmentation=None, vectorizer=None, vectorizer_sklearn=None, language_train=None, language_anchor=None, method=None):
     if method == "classical_ml":
@@ -248,7 +305,7 @@ def choose_preprocessed_text(df_train_scenario_samp_augment=None, df_test_scenar
             df_test_scenario["text_prepared"] = df_test_scenario.text_original_trans
         # multilingual BERT
         elif vectorizer == "embeddings-multi":
-            df_train_scenario_samp_augment["text_prepared"] = df_train_scenario_samp_augment.text_original_trans  # not 100% sure if this column is correct. using this column for augmented texts. Original texts are the same in this col, so should be correct.
+            df_train_scenario_samp_augment["text_prepared"] = df_train_scenario_samp_augment.text_original_trans  # should be correct using this column for augmented texts. Original texts are the same in this col, so should be correct.
             df_test_scenario["text_prepared"] = df_test_scenario.text_original_trans
         return df_train_scenario_samp_augment, df_test_scenario
 

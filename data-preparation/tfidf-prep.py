@@ -43,7 +43,7 @@ df = pd.read_csv(f"./data-clean/df_{DATASET}_trans_{NMT_MODEL}_embed.zip")  #, i
 
 # select different columns for downstream processing depending on dataset
 # for some reason, some translations are NaN
-if "manifesto-8_samp" in DATASET:
+if ("manifesto-8_samp" in DATASET) or ("pimpo_samp_a1" in DATASET):
     df["text_original_trans"] = df.text_original_trans.fillna("[TRANS_FAIL]")
 elif DATASET == "pimpo_samp":
     # overwrite this column to make downstream code work and use best column for TFIDF. reversing this down below
@@ -77,9 +77,11 @@ def remove_stopwords(text_lst, stopword_lst=None):
 # Spacy models available for differen languages https://spacy.io/usage/models
 spacy_models_dic = {"ko": "ko_core_news_md", "en": "en_core_web_md", "ru": "ru_core_news_md",
                     "es": "es_core_news_md", "de": "de_core_news_md", "fr": "fr_core_news_md",
-                    "tr": "turkish-stopwords"  # https://github.com/explosion/spaCy/tree/master/spacy/lang/tr
+                    "tr": "turkish-stopwords",  # https://github.com/explosion/spaCy/tree/master/spacy/lang/tr
+                    # additional languages for pimpo. All: 'sv' 'no' 'da' 'fi' 'nl' 'es' 'de' 'en' 'fr'
+                    "sv": "sv_core_news_md", "no": "nb_core_news_md", "da": "da_core_news_md",
+                    "fi": "fi_core_news_md", "nl": "nl_core_news_md",  # es, de, en, fr already above via manifesto
 }
-
 
 ## prepare train set
 df_prep_lst = []

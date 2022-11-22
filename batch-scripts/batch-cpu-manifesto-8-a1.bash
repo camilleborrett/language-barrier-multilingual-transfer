@@ -1,6 +1,6 @@
 #!/bin/bash
 # Set batch job requirements
-#SBATCH -t 30:00:00
+#SBATCH -t 25:00:00
 #SBATCH --partition=thin
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=m.laurer@vu.nl
@@ -35,7 +35,7 @@ n_cross_val_final=3
 model='logistic'
 method='classical_ml'
 dataset='manifesto-8'  # manifesto-8
-nmt_model='m2m_100_418M'  # m2m_100_418M, m2m_100_1.2B
+nmt_model='m2m_100_1.2B'  # m2m_100_418M, m2m_100_1.2B
 
 
 
@@ -48,15 +48,15 @@ for translation in $translation_lst
 do
   for vectorizer in $vectorizer_lst
   do
-    python analysis-classical-hyperparams.py --n_trials $n_trials --n_trials_sampling $n_trials_sampling --n_trials_pruning $n_trials_pruning --n_cross_val_hyperparam $n_cross_val_hyperparam \
+    python analysis-classical-hyperparams-a1.py --n_trials $n_trials --n_trials_sampling $n_trials_sampling --n_trials_pruning $n_trials_pruning --n_cross_val_hyperparam $n_cross_val_hyperparam \
            --dataset $dataset --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" --nmt_model $nmt_model \
            --augmentation_nmt $translation --model $model --vectorizer $vectorizer --method $method \
-           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/manifesto-8/logs/hp-$model-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs.txt
+           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/$dataset/logs/hp-$model-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs.txt
     echo hp-search done for scenario: $translation $vectorizer
-    python analysis-classical-run.py --n_cross_val_final $n_cross_val_final \
+    python analysis-classical-run-a1.py --n_cross_val_final $n_cross_val_final \
            --dataset $dataset --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" --nmt_model $nmt_model \
            --augmentation_nmt $translation --model $model --vectorizer $vectorizer --method $method \
-           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/manifesto-8/logs/run-$model-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs.txt
+           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/$dataset/logs/run-$model-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs.txt
     echo Final run done for scenario: $translation $vectorizer
   done
 done
@@ -70,15 +70,15 @@ for translation in $translation_lst
 do
   for vectorizer in $vectorizer_lst
   do
-    python analysis-classical-hyperparams.py --n_trials $n_trials --n_trials_sampling $n_trials_sampling --n_trials_pruning $n_trials_pruning --n_cross_val_hyperparam $n_cross_val_hyperparam \
+    python analysis-classical-hyperparams-a1.py --n_trials $n_trials --n_trials_sampling $n_trials_sampling --n_trials_pruning $n_trials_pruning --n_cross_val_hyperparam $n_cross_val_hyperparam \
            --dataset $dataset --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" --nmt_model $nmt_model \
            --augmentation_nmt $translation --model $model --vectorizer $vectorizer --method $method \
-           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/manifesto-8/logs/hp-$model-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs.txt
+           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/$dataset/logs/hp-$model-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs.txt
     echo hp-search done for scenario: $translation $vectorizer
-    python analysis-classical-run.py --n_cross_val_final $n_cross_val_final \
+    python analysis-classical-run-a1.py --n_cross_val_final $n_cross_val_final \
            --dataset $dataset --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" --nmt_model $nmt_model \
            --augmentation_nmt $translation --model $model --vectorizer $vectorizer --method $method \
-           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/manifesto-8/logs/run-$model-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs.txt
+           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/$dataset/logs/run-$model-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs.txt
     echo Final run done for scenario: $translation $vectorizer
   done
 done

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Set batch job requirements
-#SBATCH -t 40:00:00
+#SBATCH -t 20:00:00
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -35,7 +35,7 @@ n_cross_val_final=3
 model='transformer'   # exact model automatically chosen in script
 method='nli'  # standard_dl, nli
 dataset='manifesto-8'  # manifesto-8
-nmt_model='m2m_100_418M'  # m2m_100_418M, m2m_100_1.2B
+nmt_model='m2m_100_1.2B'  # m2m_100_418M, m2m_100_1.2B
 max_epochs=20  # 20, 50
 max_length=256
 
@@ -50,10 +50,10 @@ for translation in $translation_lst
 do
   for vectorizer in $vectorizer_lst
   do
-    python analysis-transf-run.py --n_cross_val_final $n_cross_val_final \
+    python analysis-transf-run-a1.py --n_cross_val_final $n_cross_val_final \
            --dataset $dataset --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" --nmt_model $nmt_model \
            --augmentation_nmt $translation --model $model --vectorizer $vectorizer --method $method --max_epochs $max_epochs --max_length $max_length \
-           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/manifesto-8/logs/run-$model-$method-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs.txt
+           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/$dataset/logs/run-$model-$method-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs.txt
     echo Final run done for scenario: $translation $vectorizer
   done
 done
@@ -67,10 +67,10 @@ for translation in $translation_lst
 do
   for vectorizer in $vectorizer_lst
   do
-    python analysis-transf-run.py --n_cross_val_final $n_cross_val_final \
+    python analysis-transf-run-a1.py --n_cross_val_final $n_cross_val_final \
            --dataset $dataset --languages "en" "de" "es" "fr" "tr" "ru" "ko" --language_anchor "en" --language_train "en" --nmt_model $nmt_model \
            --augmentation_nmt $translation --model $model --vectorizer $vectorizer --method $method --max_epochs $max_epochs --max_length $max_length \
-           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/manifesto-8/logs/run-$model-$method-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs.txt
+           --sample_interval $sample --hyperparam_study_date $study_date  &> ./results/$dataset/logs/run-$model-$method-$translation-$vectorizer-$sample-$dataset-$nmt_model-$study_date-logs.txt
     echo Final run done for scenario: $translation $vectorizer
   done
 done

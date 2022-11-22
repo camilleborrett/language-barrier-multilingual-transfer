@@ -298,6 +298,55 @@ df_cl_samp.to_csv(f'./data-clean/{file_name}.zip', compression=compression_optio
 #df_cl_samp.to_csv("./data-clean/df_pimpo_samp.csv", index=False)
 
 
+
+### train-test split samples for first analysis
+from sklearn.model_selection import train_test_split
+
+# stratify by both labels and language - otherwise no/too little data for some languages
+df_cl['stratify_by'] = df_cl['language_iso'].astype(str) + "_" + df_cl['label_text'].astype(str)
+df_train, df_test = train_test_split(df_cl, test_size=0.4, random_state=SEED_GLOBAL, stratify=df_cl["stratify_by"])
+
+# take smaller sample specifically for no-topic class due to very high data imbalance
+n_no_topic = 2_000
+# ! no larger no-topic sample for test? Or just 1k, since not realistic anyways
+# ! different proportions in test data due to different distribution can have impact on cross-lang std. can seem like model issue, but actually test set differences
+df_train_samp_notopic = df_train.groupby(by="language_iso", as_index=False, group_keys=False).apply(lambda x: x[x.label_text == "no_topic"].sample(n=min(n_no_topic, len(x[x.label_text == "no_topic"])), random_state=SEED_GLOBAL))
+df_test_samp_notopic = df_test.groupby(by="language_iso", as_index=False, group_keys=False).apply(lambda x: x[x.label_text == "no_topic"].sample(n=min(n_no_topic, len(x[x.label_text == "no_topic"])), random_state=SEED_GLOBAL))
+df_train_samp = pd.concat([df_train[df_train.label_text != "no_topic"], df_train_samp_notopic])
+df_test_samp = pd.concat([df_test[df_test.label_text != "no_topic"], df_test_samp_notopic])
+
+## deletable test
+"""n_no_topic_or_topic = int(500 / 2)
+df_train_scenario_samp_ids = df_train.groupby(by="language_iso", as_index=False, group_keys=False).apply(
+    lambda x: pd.concat([x[x.label_text == "no_topic"].sample(n=min(n_no_topic_or_topic, len(x[x.label_text != "no_topic"])), random_state=42)["rn"],
+                         x[x.label_text != "no_topic"].sample(n=min(n_no_topic_or_topic, len(x[x.label_text != "no_topic"])), random_state=42)["rn"]
+                         ]))
+df_train_samp = df_train[df_train["rn"].isin(df_train_scenario_samp_ids)]"""
+
+## inspect train-test distribution by language
+inspection_lang_dic_train = {}
+for lang in df_train_samp.language_iso.unique():
+    inspection_lang_dic_train.update({lang: df_train_samp[df_train_samp.language_iso == lang].label_text.value_counts()})
+df_inspection_lang_train = pd.DataFrame(inspection_lang_dic_train)
+inspection_lang_dic_test = {}
+for lang in df_test_samp.language_iso.unique():
+    inspection_lang_dic_test.update({lang: df_test_samp[df_test_samp.language_iso == lang].label_text.value_counts()})
+df_inspection_lang_test = pd.DataFrame(inspection_lang_dic_test)
+
+
+# write to disk
+file_name = "df_pimpo_samp_a1_train"
+compression_options = dict(method='zip', archive_name=f'{file_name}.csv')
+df_train_samp.to_csv(f'./data-clean/{file_name}.zip', compression=compression_options, index=False)
+
+file_name = "df_pimpo_samp_a1_test"
+compression_options = dict(method='zip', archive_name=f'{file_name}.csv')
+df_test_samp.to_csv(f'./data-clean/{file_name}.zip', compression=compression_options, index=False)
+
+
+
+
+
 print("Script done.")
 
 

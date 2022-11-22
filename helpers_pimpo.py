@@ -25,10 +25,15 @@ def load_data(languages=None, task=None, method=None, model_size=None, hypothesi
     df_train = df[df.label_text_pred.isna()]
     print(f"{len(df_train)} texts out of {len(df)} were in training data for this scenario. Excluding them for downstream analysis.")
     print(f"{len(df) - len(df_train)} of the population remain for tests.")
-    df = df[~df.label_text_pred.isna()]
 
-    # prediction only for languages not in training data
-    df_cl = df[~df.language_iso.isin(languages)]
+    # exclude training data from test/prediction population
+    df_cl = df[~df.label_text_pred.isna()]
+
+    # prediction only for languages not in training data ?
+    # (? can also just exclude training data. because some languages still have some relevant data that was excluded from training through the 500 max sampling)
+    # keeping this non-training data for same languages is actually relevant for having the full distribution
+    # Argument for excluding any data from training language: testing cross-lingual transfer
+    #df_cl = df_cl[~df_cl.language_iso.isin(languages)]
 
     return df_cl
 

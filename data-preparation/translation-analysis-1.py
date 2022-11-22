@@ -61,8 +61,6 @@ df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test.zip", sep=",")   #on_bad_
 #df_train = df_train.groupby(by="language_iso").apply(lambda x: x.sample(n=min(len(x), 200), random_state=42))
 #df_test = df_test.groupby(by="language_iso").apply(lambda x: x.sample(n=min(len(x), 100), random_state=42))
 
-
-
 df_train = df_train.reset_index(drop=True)  # unnecessary nested index
 df_test = df_test.reset_index(drop=True)  # unnecessary nested index
 
@@ -71,7 +69,10 @@ df_test = df_test.reset_index(drop=True)  # unnecessary nested index
 ## translate each language in all other languages
 # all parameters/methods for .translate here: https://github.com/UKPLab/EasyNMT/blob/main/easynmt/EasyNMT.py
 #lang_lst_pimpo = ["sv", "no", "da", "fi", "nl", "es", "de", "en", "fr"]
-lang_lst = ["en", "de", "es", "fr", "ko", "tr", "ru"]  #["eng", "deu", "spa", "fra", "kor", "jpn", "tur", "rus"]  #"ja"
+if "manifesto" in DATASET:
+    lang_lst = ["en", "de", "es", "fr", "ko", "tr", "ru"]  #["eng", "deu", "spa", "fra", "kor", "jpn", "tur", "rus"]  #"ja"
+elif "pimpo_samp_a1" in DATASET:
+    lang_lst = ["da", "de", "fi", "no", "en", "es", "nl", "sv", "fr"]
 
 # has to be M2M due to many language directions
 model = EasyNMT(NMT_MODEL)  # m2m_100_418M,  m2m_100_1.2B, facebook/m2m100-12B-last-ckpt  opus-mt,
@@ -103,6 +104,8 @@ df_test["language_iso_trans"] = df_test["language_iso"]  #[np.nan] * len(df_test
 df_test_trans_concat = pd.concat([df_test, df_test_samp_trans], axis=0)
 df_test_trans_concat = df_test_trans_concat.drop_duplicates()
 print(len(df_test_trans_concat))
+# drop columns to reduce size
+df_test_trans_concat = df_test_trans_concat.drop(columns=["text_preceding", "text_following"])
 # write to disk
 #df_test_trans_concat.to_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}.csv", index=False)
 df_test_trans_concat.to_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}.zip",
@@ -119,6 +122,8 @@ df_train["language_iso_trans"] = df_train["language_iso"]  #[np.nan] * len(df_tr
 df_train_trans_concat = pd.concat([df_train, df_train_samp_trans], axis=0)
 df_train_trans_concat = df_train_trans_concat.drop_duplicates()
 print(len(df_train_trans_concat))
+# drop columns to reduce size
+df_train_trans_concat = df_train_trans_concat.drop(columns=["text_preceding", "text_following"])
 # write to disk
 #df_train_trans_concat.to_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}.csv", index=False)
 df_train_trans_concat.to_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}.zip",

@@ -110,15 +110,15 @@ if EXECUTION_TERMINAL == True:
 elif EXECUTION_TERMINAL == False:
   # parse args if not in terminal, but in script
   args = parser.parse_args(["--n_cross_val_final", "2",  #--zeroshot
-                            "--dataset", "manifesto-8",
-                            "--languages", "en", "de", "es", "fr", "tr", "ru", "ko",
+                            "--dataset", "pimpo_samp_a1",
+                            "--languages", 'sv', 'no', 'da', 'fi', 'nl', 'es', 'de', 'en', 'fr',  #"en", "de", "es", "fr", "tr", "ru", "ko",
                             "--language_anchor", "en", "--language_train", "en",  # in multiling scenario --language_train is not used
                             "--augmentation_nmt", "many2many",  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
-                            "--sample_interval", "300",  #"100", "500", "1000", #"2500", "5000", #"10000",
+                            "--sample_interval", "100",  #"100", "500", "1000", #"2500", "5000", #"10000",
                             "--method", "classical_ml", "--model", "logistic",  # SVM, logistic
                             "--vectorizer", "embeddings-multi",  # "tfidf", "embeddings-en", "embeddings-multi"
-                            "--nmt_model", "m2m_100_1.2B",  #"m2m_100_1.2B", "m2m_100_418M"
-                            "--hyperparam_study_date", "20221026"])
+                            "--nmt_model", "m2m_100_418M",  #"m2m_100_1.2B", "m2m_100_418M"
+                            "--hyperparam_study_date", "20221111"])
 
 
 ### args only for test runs
@@ -153,6 +153,14 @@ if "manifesto-8" in DATASET:
   df_cl = pd.read_csv("./data-clean/df_manifesto_all.zip")
   df_train = pd.read_csv(f"./data-clean/df_{DATASET}_samp_train_trans_{NMT_MODEL}_embed_tfidf.zip")
   df_test = pd.read_csv(f"./data-clean/df_{DATASET}_samp_test_trans_{NMT_MODEL}_embed_tfidf.zip")
+if "pimpo_samp_a1" in DATASET:
+  df_cl = pd.read_csv("./data-clean/df_pimpo_all.zip")
+  df_train = pd.read_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}_embed_tfidf.zip")
+  df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}_embed_tfidf.zip")
+  # only doing analysis on immigration
+  df_cl = df_cl[df_cl.label_text.isin(['no_topic', 'immigration_sceptical', 'immigration_supportive', 'immigration_neutral'])]  # 'integration_neutral', 'integration_sceptical', 'integration_supportive'
+  df_train = df_train[df_train.label_text.isin(['no_topic', 'immigration_sceptical', 'immigration_supportive', 'immigration_neutral'])]  # 'integration_neutral', 'integration_sceptical', 'integration_supportive'
+  df_test = df_test[df_test.label_text.isin(['no_topic', 'immigration_sceptical', 'immigration_supportive', 'immigration_neutral'])]  # 'integration_neutral', 'integration_sceptical', 'integration_supportive'
 else:
   raise Exception(f"Dataset name not found: {DATASET}")
 
@@ -164,8 +172,12 @@ if "manifesto-8" in DATASET:
   df_train["label"] = pd.factorize(df_train["label_text"], sort=True)[0]
   df_test["label_text"] = df_test["label_domain_text"]
   df_test["label"] = pd.factorize(df_test["label_text"], sort=True)[0]
+elif "pimpo_samp_a1" in DATASET:
+  df_cl["label"] = pd.factorize(df_cl["label_text"], sort=True)[0]
+  df_train["label"] = pd.factorize(df_train["label_text"], sort=True)[0]
+  df_test["label"] = pd.factorize(df_test["label_text"], sort=True)[0]
 else:
-    raise Exception(f"Dataset not defined: {DATASET}")
+    Exception(f"Dataset not defined: {DATASET}")
 
 print(DATASET)
 
@@ -219,7 +231,7 @@ importlib.reload(helpers)
 
 from helpers import compute_metrics_classical_ml, clean_memory
 ## functions for scenario data selection and augmentation
-from helpers import select_data_for_scenario_hp_search, select_data_for_scenario_final_test, data_augmentation, sample_for_scenario, choose_preprocessed_text
+from helpers import select_data_for_scenario_final_test, data_augmentation, choose_preprocessed_text
 
 
 
@@ -300,9 +312,16 @@ for lang, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterat
     # one sample size for single language data scenario
     else:
       df_train_scenario_samp = df_train_scenario.sample(n=min(n_sample, len(df_train_scenario)), random_state=random_seed_sample).copy(deep=True)
+    # faulty function for sampling
+    #df_train_scenario_samp = sample_for_scenario_final(df_train_scenario=df_train_scenario, n_sample=n_sample, augmentation=AUGMENTATION, vectorizer=VECTORIZER, seed=SEED_GLOBAL, lang=lang, dataset=DATASET)
 
-    print("Number of test examples after sampling: ", len(df_test_scenario))
     print("Number of training examples after sampling: ", len(df_train_scenario_samp))
+    print("Label distribution for df_train_scenario_samp: ", df_train_scenario_samp.label_text.value_counts())
+    print("Language distribution for df_train_scenario_samp: ", df_train_scenario_samp.language_iso.value_counts())
+    print("Number of test examples (should be constant): ", len(df_test_scenario))
+    print("Label distribution for df_test_scenario: ", df_test_scenario.label_text.value_counts())
+    print("\n")
+
 
     if n_sample == 0:  # only one inference necessary on same test set in case of zero-shot
       metric_step = {'accuracy_balanced': 0, 'accuracy_not_b': 0, 'f1_macro': 0, 'f1_micro': 0}
@@ -315,9 +334,16 @@ for lang, hyperparams in tqdm.tqdm(zip(LANG_LST, HYPER_PARAMS_LST), desc="Iterat
 
     ### data augmentation on sample for multiling models + translation scenarios
     # general function - common with hp-search script
-    df_train_scenario_samp_augment = data_augmentation(df_train_scenario_samp=df_train_scenario_samp, df_train=df_train, lang=lang, augmentation=AUGMENTATION, vectorizer=VECTORIZER, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR)
+    df_train_scenario_samp_augment = data_augmentation(df_train_scenario_samp=df_train_scenario_samp, df_train=df_train, lang=lang, augmentation=AUGMENTATION, vectorizer=VECTORIZER, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR, dataset=DATASET)
 
     print("Number of training examples after (potential) augmentation: ", len(df_train_scenario_samp_augment))
+
+    print("\nCounts for checking augmentation issues: ")
+    print("\nCount for df_train_scenario_samp_augment.language_iso: ", df_train_scenario_samp_augment.language_iso.value_counts())
+    print("Count for df_train_scenario_samp_augment.language_iso_trans: ", df_train_scenario_samp_augment.language_iso_trans.value_counts())
+
+    print("\nCount for df_test_scenario.language_iso: ", df_test_scenario.language_iso.value_counts())
+    print("Count for df_test_scenario.language_iso_trans: ", df_test_scenario.language_iso_trans.value_counts())
 
     ### text pre-processing
     # separate hyperparams for vectorizer and classifier.
@@ -476,123 +502,5 @@ for experiment_key in experiment_details_dic:
 
 
 print("\n\nRun done.")
-
-
-
-
-"""
-##### single lang experiments
-### classical_ml
-## no-NMT-single, sentence-embed-multi
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'classical_ml', 'model_name': 'SVM', 'vectorizer': 'embeddings-multi', 'lang_anchor': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'no-nmt-single', 
-'f1_macro_mean': 0.3534645474830353, 'f1_micro_mean': 0.4572575832546144, 'accuracy_balanced_mean': 0.35691265644956, 'f1_macro_mean_std': 0.012277780071643304, 'f1_micro_mean_std': 0.014746932856258629, 'accuracy_balanced_mean_std': 0.010978804500949638}}
-
-## anchor 'en', tfidf, one2anchor
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'classical_ml', 'model_name': 'SVM', 'vectorizer': 'tfidf', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'one2anchor', 
-'f1_macro_mean': 0.2118354405320051, 'f1_micro_mean': 0.3179280368464983, 'accuracy_balanced_mean': 0.2163801405620471, 'f1_macro_mean_std': 0.009229978878317351, 'f1_micro_mean_std': 0.011363037915812729, 'accuracy_balanced_mean_std': 0.008312693863799151}}
-
-## anchor 'en', sentence-embeddings-en, one2anchor
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'classical_ml', 'model_name': 'SVM', 'vectorizer': 'embeddings-en', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'one2anchor', 
-'f1_macro_mean': 0.33984091289212187, 'f1_micro_mean': 0.43704185004817836, 'accuracy_balanced_mean': 0.3455634379787608, 'f1_macro_mean_std': 0.012872255743693268, 'f1_micro_mean_std': 0.011860833391862844, 'accuracy_balanced_mean_std': 0.01098504906461055}}
-
-## anchor 'en', sentence-embeddings-multi, trained on one2anchor (EN-anchor+anchor2test-lang), tested on test-lang 
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'classical_ml', 'model_name': 'SVM', 'vectorizer': 'embeddings-multi', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'one2anchor', 
-'f1_macro_mean': 0.34753720700622903, 'f1_micro_mean': 0.4462708519608439, 'accuracy_balanced_mean': 0.3514446040496088, 'f1_macro_mean_std': 0.01092396332476347, 'f1_micro_mean_std': 0.0140087481234386, 'accuracy_balanced_mean_std': 0.010391447194617548}}
-# ! seems embed-multi seems actually better when no additional embeddings for translations. probably adds unnecessary noise from lower quality texts through nmt  # simple no-NMT-single seems better
-
-## sentence-embeddings-multi, trained on one2many, tested on test-lang 
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'classical_ml', 'model_name': 'SVM', 'vectorizer': 'embeddings-multi', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'one2many', 
-'f1_macro_mean': 0.334976068703692, 'f1_micro_mean': 0.43052156503444294, 'accuracy_balanced_mean': 0.3373919447972773, 'f1_macro_mean_std': 0.015057241526948756, 'f1_micro_mean_std': 0.010832965715384535, 'accuracy_balanced_mean_std': 0.011477658939804574}}
-
-
-### standard_dl
-## no-NMT-single, minilm-multi, 30 epochs
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'standard_dl', 'model_name': 'microsoft/Multilingual-MiniLM-L12-H384', 'vectorizer': 'transformer-multi', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'no-nmt-single', 
-'f1_macro_mean': 0.32465740077048505, 'f1_micro_mean': 0.4350816756328619, 'accuracy_balanced_mean': 0.33964981863190635, 'f1_macro_mean_std': 0.017021589438980484, 'f1_micro_mean_std': 0.008622679567886487, 'accuracy_balanced_mean_std': 0.015569686061854549}}
-
-## one2anchor, minilm-en, 30 epochs
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'standard_dl', 'model_name': 'microsoft/MiniLM-L12-H384-uncased', 'vectorizer': 'transformer-mono', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'one2anchor', 
-'f1_macro_mean': 0.3526785087677711, 'f1_micro_mean': 0.4449542193991269, 'accuracy_balanced_mean': 0.3624410341419119, 'f1_macro_mean_std': 0.0182065168918998, 'f1_micro_mean_std': 0.02047364185883419, 'accuracy_balanced_mean_std': 0.01922773673919911}}
-
-## one2anchor, minilm-multi, 30 epochs
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'standard_dl', 'model_name': 'microsoft/Multilingual-MiniLM-L12-H384', 'vectorizer': 'transformer-multi', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'one2anchor', 
-'f1_macro_mean': 0.3310419058216454, 'f1_micro_mean': 0.4276589497148626, 'accuracy_balanced_mean': 0.3431239237844909, 'f1_macro_mean_std': 0.012778547620174932, 'f1_micro_mean_std': 0.011620658524093516, 'accuracy_balanced_mean_std': 0.00975351471176684}}
-
-## one2many, minilm-multi, 15 epochs
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'standard_dl', 'model_name': 'microsoft/Multilingual-MiniLM-L12-H384', 'vectorizer': 'transformer-multi', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'one2many', 
-'f1_macro_mean': 0.34504896603553187, 'f1_micro_mean': 0.45934509552937114, 'accuracy_balanced_mean': 0.3520232568809181, 'f1_macro_mean_std': 0.016290885919853306, 'f1_micro_mean_std': 0.011691613391657663, 'accuracy_balanced_mean_std': 0.01616228799569507}}
-
-
-
-#### many lang experiments
-### classical_ml
-
-# no-nmt-many, tfidf
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'classical_ml', 'model_name': 'SVM', 'vectorizer': 'tfidf', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'no-nmt-many',
-'f1_macro_mean': 0.19921951661655699, 'f1_micro_mean': 0.3009558921594391, 'accuracy_balanced_mean': 0.2019695591798122, 'f1_macro_mean_std': 0.009561234583870556, 'f1_micro_mean_std': 0.00615240006513217, 'accuracy_balanced_mean_std': 0.008381838229723854}}
-# ! problematic because no custom stopwords & lang-specific feature engineering
-
-# no-nmt-many, embeddings-en (embeddings-multi separately per lang as proxy)
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'classical_ml', 'model_name': 'SVM', 'vectorizer': 'embeddings-en', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'no-nmt-many', 
-'f1_macro_mean': 0.3685606391115852, 'f1_micro_mean': 0.47229330204043096, 'accuracy_balanced_mean': 0.36848250108324637, 'f1_macro_mean_std': 0.0132849060127712, 'f1_micro_mean_std': 0.01544597252506312, 'accuracy_balanced_mean_std': 0.014226180844586689}}
-
-# no-nmt-many, embeddings-multi (not separately)
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'classical_ml', 'model_name': 'SVM', 'vectorizer': 'embeddings-multi', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'no-nmt-many', 
-'f1_macro_mean': 0.40123910112737377, 'f1_micro_mean': 0.4962471131639723, 'accuracy_balanced_mean': 0.39881525293622316, 'f1_macro_mean_std': 0.012050144455204859, 'f1_micro_mean_std': 0.007794457274826777, 'accuracy_balanced_mean_std': 0.010892572269832757}}
-
-# many2anchor, tfidf
-# !!! performance with 500 samp is better than 2000 samp => there must be an issue with my code ... (or hps are really bad for larger sample)
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'classical_ml', 'model_name': 'SVM', 'vectorizer': 'tfidf', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'many2anchor', 
-'f1_macro_mean': 0.14096287931460702, 'f1_micro_mean': 0.29330254041570436, 'accuracy_balanced_mean': 0.16227912164844183, 'f1_macro_mean_std': 0.010291036560354988, 'f1_micro_mean_std': 0.001732101616628151, 'accuracy_balanced_mean_std': 0.005258498354857241}}
-# ! not sure why this is worse than no-nmt-many. bug in code? or too much translation noise? should be better because more originally different texts. df_train_samp seems correct. maybe because test set more diverse and larger with NMT noise? Or unsuitable hp!
-# with train shuffle
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'classical_ml', 'model_name': 'SVM', 'vectorizer': 'tfidf', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'many2anchor', 
-'f1_macro_mean': 0.14072795148138845, 'f1_micro_mean': 0.29272517321016167, 'accuracy_balanced_mean': 0.16202710551940958, 'f1_macro_mean_std': 0.010305313432689367, 'f1_micro_mean_std': 0.0017321016166281789, 'accuracy_balanced_mean_std': 0.005258498354857241}}
-
-# many2anchor, embeddings-en
-# !!! performance with 500 samp is better than 2000 samp => there must be an issue with my code ... (or hps are really bad for larger sample)
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'classical_ml', 'model_name': 'SVM', 'vectorizer': 'embeddings-en', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'many2anchor', 
-'f1_macro_mean': 0.35697876826617514, 'f1_micro_mean': 0.4532332563510393, 'accuracy_balanced_mean': 0.3564410059193819, 'f1_macro_mean_std': 0.008993920383241288, 'f1_micro_mean_std': 0.00808314087759815, 'accuracy_balanced_mean_std': 0.008827801936200363}}
-# ! not sure why this is worse than no-nmt-many. bug in code? or too much translation noise? should be better because more originally different texts. df_train_samp seems correct. maybe because test set more diverse and larger with NMT noise? Or unsuitable hp!
-# with train shuffle
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'classical_ml', 'model_name': 'SVM', 'vectorizer': 'embeddings-en', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'many2anchor', 
-'f1_macro_mean': 0.36208952684838036, 'f1_micro_mean': 0.4636258660508083, 'accuracy_balanced_mean': 0.3636840115696522, 'f1_macro_mean_std': 0.010150913399416511, 'f1_micro_mean_std': 0.006351039260969971, 'accuracy_balanced_mean_std': 0.012020711360166303}}
-
-# many2anchor, embeddings-multi
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'classical_ml', 'model_name': 'SVM', 'vectorizer': 'embeddings-multi', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'many2anchor',
-'f1_macro_mean': 0.35997759792774364, 'f1_micro_mean': 0.4416859122401848, 'accuracy_balanced_mean': 0.35838894874988086, 'f1_macro_mean_std': 0.008749341694553575, 'f1_micro_mean_std': 0.0017321016166281789, 'accuracy_balanced_mean_std': 0.009085730632123923}}
-# ?! translating to anchor and mixing seems to hurt performance quite a bit. Despite mixing original texts with trans-anchor. maybe embeddings cannot represent additional info in single vectors properly? Or unsuitable hps!
-
-# many2many, embeddings-multi
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'classical_ml', 'model_name': 'SVM', 'vectorizer': 'embeddings-multi', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'many2many', 
-'f1_macro_mean': 0.30696868425830426, 'f1_micro_mean': 0.3767321016166282, 'accuracy_balanced_mean': 0.3076885088264402, 'f1_macro_mean_std': 0.006938317325874105, 'f1_micro_mean_std': 0.0025981524249422683, 'accuracy_balanced_mean_std': 0.007123764810302247}}
-# more mixing hurts even more (or less suitable hps)
-
-
-### standard_dl
-## no-NMT-many, minilm-multi, 10 epochs
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'standard_dl', 'model_name': 'microsoft/Multilingual-MiniLM-L12-H384', 'vectorizer': 'transformer-multi', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'no-nmt-many', 
-'f1_macro_mean': 0.37265943750685937, 'f1_micro_mean': 0.49855658198614317, 'accuracy_balanced_mean': 0.38138113840610777, 'f1_macro_mean_std': 0.029512500372632644, 'f1_micro_mean_std': 0.025115473441108538, 'accuracy_balanced_mean_std': 0.019593473356427776}}
-
-## many2anchor, minilm-en, 10 epochs
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'standard_dl', 'model_name': 'microsoft/MiniLM-L12-H384-uncased', 'vectorizer': 'transformer-mono', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'many2anchor', 
-'f1_macro_mean': 0.12292358678515314, 'f1_micro_mean': 0.3443995381062356, 'accuracy_balanced_mean': 0.1865493321634295, 'f1_macro_mean_std': 0.06726829055535061, 'f1_micro_mean_std': 0.05802540415704388, 'accuracy_balanced_mean_std': 0.061549332163429504}}
-# 30 epochs
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'standard_dl', 'model_name': 'microsoft/MiniLM-L12-H384-uncased', 'vectorizer': 'transformer-mono', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'many2anchor', 
-'f1_macro_mean': 0.29671129778832206, 'f1_micro_mean': 0.398094688221709, 'accuracy_balanced_mean': 0.3096610023639281, 'f1_macro_mean_std': 0.00959969473724312, 'f1_micro_mean_std': 0.012990762124711314, 'accuracy_balanced_mean_std': 0.005635760287067082}}
-
-## many2anchor, minilm-multi, 10 epochs
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'standard_dl', 'model_name': 'microsoft/Multilingual-MiniLM-L12-H384', 'vectorizer': 'transformer-multi', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'many2anchor', 
-'f1_macro_mean': 0.40696748699064167, 'f1_micro_mean': 0.5046189376443417, 'accuracy_balanced_mean': 0.4081168572038839, 'f1_macro_mean_std': 0.0013554627823026688, 'f1_micro_mean_std': 0.006351039260969971, 'accuracy_balanced_mean_std': 0.00019480069060628935}}
-
-## many2many, minilm-multi, 4 epochs
-{'experiment_summary': {'dataset': 'manifesto-8', 'sample_size': [500], 'method': 'standard_dl', 'model_name': 'microsoft/Multilingual-MiniLM-L12-H384', 'vectorizer': 'transformer-multi', 'lang_anchor': 'en', 'lang_train': 'en', 'lang_all': ['en', 'de', 'es', 'fr', 'tr', 'ru'], 'augmentation': 'many2many', 
-'f1_macro_mean': 0.4060399798702805, 'f1_micro_mean': 0.4942263279445728, 'accuracy_balanced_mean': 0.41114805502934704, 'f1_macro_mean_std': 0.01256610814450368, 'f1_micro_mean_std': 0.026558891454965372, 'accuracy_balanced_mean_std': 0.01592137067509322}}
-
-
-
-"""
-
-
 
 

@@ -174,6 +174,14 @@ if "manifesto-8" in DATASET:
   df_cl = pd.read_csv("./data-clean/df_manifesto_all.zip")
   df_train = pd.read_csv(f"./data-clean/df_{DATASET}_samp_train_trans_{NMT_MODEL}_embed_tfidf.zip")
   df_test = pd.read_csv(f"./data-clean/df_{DATASET}_samp_test_trans_{NMT_MODEL}_embed_tfidf.zip")
+if "pimpo_samp_a1" in DATASET:
+  df_cl = pd.read_csv("./data-clean/df_pimpo_all.zip")
+  df_train = pd.read_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}_embed_tfidf.zip")
+  df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}_embed_tfidf.zip")
+  # only doing analysis on immigration
+  df_cl = df_cl[df_cl.label_text.isin(['no_topic', 'immigration_sceptical', 'immigration_supportive', 'immigration_neutral'])]  # 'integration_neutral', 'integration_sceptical', 'integration_supportive'
+  df_train = df_train[df_train.label_text.isin(['no_topic', 'immigration_sceptical', 'immigration_supportive', 'immigration_neutral'])]  # 'integration_neutral', 'integration_sceptical', 'integration_supportive'
+  df_test = df_test[df_test.label_text.isin(['no_topic', 'immigration_sceptical', 'immigration_supportive', 'immigration_neutral'])]  # 'integration_neutral', 'integration_sceptical', 'integration_supportive'
 else:
   raise Exception(f"Dataset name not found: {DATASET}")
 
@@ -185,8 +193,12 @@ if "manifesto-8" in DATASET:
   df_train["label"] = pd.factorize(df_train["label_text"], sort=True)[0]
   df_test["label_text"] = df_test["label_domain_text"]
   df_test["label"] = pd.factorize(df_test["label_text"], sort=True)[0]
+elif "pimpo_samp_a1" in DATASET:
+  df_cl["label"] = pd.factorize(df_cl["label_text"], sort=True)[0]
+  df_train["label"] = pd.factorize(df_train["label_text"], sort=True)[0]
+  df_test["label"] = pd.factorize(df_test["label_text"], sort=True)[0]
 else:
-    raise Exception(f"Dataset not defined: {DATASET}")
+    Exception(f"Dataset not defined: {DATASET}")
 
 print(DATASET)
 
@@ -241,7 +253,7 @@ from helpers import compute_metrics_standard, clean_memory
 from helpers import load_model_tokenizer, tokenize_datasets, set_train_args, create_trainer
 
 ## functions for scenario data selection and augmentation
-from helpers import select_data_for_scenario_hp_search, select_data_for_scenario_final_test, data_augmentation, sample_for_scenario, choose_preprocessed_text
+from helpers import select_data_for_scenario_final_test, data_augmentation, choose_preprocessed_text
 from helpers import format_nli_trainset, format_nli_testset
 
 
@@ -282,16 +294,24 @@ print(HYPER_PARAMS_LST)
 
 
 ## create hypotheses for NLI
-hypo_label_dic = OrderedDict({
-    "Economy": "The quote is about topics like economy, or technology, or infrastructure, or free market",
-    "External Relations": "The quote is about topics like international relations, or foreign policy, or military",
-    "Fabric of Society": "The quote is about topics like law and order, or multiculturalism, or national way of life, or traditional morality",
-    "Freedom and Democracy": "The quote is about topics like democracy, or freedom, or human rights, or constitutionalism",
-    "Political System": "The quote is about topics like governmental efficiency, or political authority, or decentralisation, or corruption",
-    "Social Groups": "The quote is about topics like agriculture, or social groups, or labour groups, or minorities",
-    "Welfare and Quality of Life": "The quote is about topics like welfare, or education, or environment, or equality, or culture",
-    "No other category applies": "The quote is about something other than the topics economy, international relations, society, freedom and democracy, political system, social groups, welfare. It is about none of these topics"
-})
+if "manifesto" in DATASET:
+    hypo_label_dic = OrderedDict({
+        "Economy": "The quote is about topics like economy, or technology, or infrastructure, or free market",
+        "External Relations": "The quote is about topics like international relations, or foreign policy, or military",
+        "Fabric of Society": "The quote is about topics like law and order, or multiculturalism, or national way of life, or traditional morality",
+        "Freedom and Democracy": "The quote is about topics like democracy, or freedom, or human rights, or constitutionalism",
+        "Political System": "The quote is about topics like governmental efficiency, or political authority, or decentralisation, or corruption",
+        "Social Groups": "The quote is about topics like agriculture, or social groups, or labour groups, or minorities",
+        "Welfare and Quality of Life": "The quote is about topics like welfare, or education, or environment, or equality, or culture",
+        "No other category applies": "The quote is about something other than the topics economy, international relations, society, freedom and democracy, political system, social groups, welfare. It is about none of these topics"
+    })
+elif "pimpo" in DATASET:
+    hypo_label_dic = {
+        "immigration_neutral": "The quote describes immigration neutrally without implied value judgement or describes the status quo of immigration, for example only stating facts or using technocratic language about immigration",
+        "immigration_sceptical": "The quote describes immigration sceptically / disapprovingly. For example, the quote could mention the costs of immigration, be against migrant workers, state that foreign labour decreases natives' wages, that there are already enough refugees, refugees are actually economic migrants, be in favour of stricter immigration controls, exceptions to the freedom of movement in the EU.",
+        "immigration_supportive": "The quote describes immigration favourably / supportively. For example, the quote could mention the benefits of immigration, the need for migrant workers, international obligations to take in refugees, protection of human rights, in favour of family reunification or freedom of movement in the EU.",
+        "no_topic": "The quote is not about immigration.",
+    }
 
 
 
@@ -336,9 +356,15 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
     # one sample size for single language data scenario
     else:
       df_train_scenario_samp = df_train_scenario.sample(n=min(n_sample, len(df_train_scenario)), random_state=random_seed_sample).copy(deep=True)
+    # faulty function for sampling
+    #df_train_scenario_samp = sample_for_scenario_final(df_train_scenario=df_train_scenario, n_sample=n_sample, augmentation=AUGMENTATION, vectorizer=VECTORIZER, seed=SEED_GLOBAL, lang=lang, dataset=DATASET)
 
-    print("Number of test examples after sampling: ", len(df_test_scenario))
     print("Number of training examples after sampling: ", len(df_train_scenario_samp))
+    print("Label distribution for df_train_scenario_samp: ", df_train_scenario_samp.label_text.value_counts())
+    print("Language distribution for df_train_scenario_samp: ", df_train_scenario_samp.language_iso.value_counts())
+    print("Number of test examples (should be constant): ", len(df_test_scenario))
+    print("Label distribution for df_test_scenario: ", df_test_scenario.label_text.value_counts())
+    print("\n")
 
     if (n_sample == 0) and (METHOD != "nli"):
       metric_step = {'accuracy_balanced': 0, 'accuracy_not_b': 0, 'f1_macro': 0, 'f1_micro': 0}
@@ -351,7 +377,7 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
 
     ### data augmentation on sample for multiling models + translation scenarios
     # general function - common with hp-search script
-    df_train_scenario_samp_augment = data_augmentation(df_train_scenario_samp=df_train_scenario_samp, df_train=df_train, lang=lang, augmentation=AUGMENTATION, vectorizer=VECTORIZER, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR)
+    df_train_scenario_samp_augment = data_augmentation(df_train_scenario_samp=df_train_scenario_samp, df_train=df_train, lang=lang, augmentation=AUGMENTATION, vectorizer=VECTORIZER, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR, dataset=DATASET)
 
     print("Number of training examples after (potential) augmentation: ", len(df_train_scenario_samp_augment))
 
@@ -363,7 +389,7 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
     print("Count for df_test_scenario.language_iso_trans: ", df_test_scenario.language_iso_trans.value_counts())
 
     ### text pre-processing
-    # careful: double check if it's correct to just always take the "text_original_trans" column for both BERT models. should be correct because contains original text if iso-original == iso-trans. This should be done correctly upstream
+    # always taking the "text_original_trans" column for both BERT models. should be correct because contains original text if iso-original == iso-trans. This should be done correctly upstream
     df_train_scenario_samp_augment_textcol, df_test_scenario_textcol = choose_preprocessed_text(df_train_scenario_samp_augment=df_train_scenario_samp_augment, df_test_scenario=df_test_scenario, augmentation=AUGMENTATION, vectorizer=VECTORIZER, vectorizer_sklearn=None, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR, method=METHOD)
     df_train_scenario_samp_augment_textcol = df_train_scenario_samp_augment_textcol.sample(frac=1.0, random_state=random_seed_sample)
 
@@ -397,12 +423,6 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
     experiment_details_dic_lang.update({"hyperparams": hyperparams})
 
     train_args = set_train_args(hyperparams_dic=hyperparams, training_directory=TRAINING_DIRECTORY, disable_tqdm=False, evaluation_strategy="no", fp16=fp16_bool)  # could also vary the seed here, but just also taking 42 for simplicity
-    #trainer = create_trainer(model=model, tokenizer=tokenizer, encoded_dataset=encoded_dataset, train_args=train_args,
-    #                         method=METHOD, label_text_alphabetical=LABEL_TEXT_ALPHABETICAL)
-    #clean_memory()
-
-    #if n_sample != 0:
-    #  trainer.train()
 
     ### training on train set sample
     ## train 1 (*n_seeds) or 7 (*n_seeds) classifiers, depending on scenario
