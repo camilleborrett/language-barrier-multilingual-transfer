@@ -77,7 +77,7 @@ parser.add_argument('-lang', '--languages', type=str, nargs='+',
                     help='List of languages to iterate over. e.g. "en", "de", "es", "fr", "ko", "tr", "ru" ')
 parser.add_argument('-anchor', '--language_anchor', type=str,
                     help='Anchor language to translate all texts to if not many2many. Default is "en"')
-parser.add_argument('-language_train', '--language_train', type=str,
+parser.add_argument('-language_train', '--language_train', type=str, nargs='+',
                     help='What language should the training set be in?. Default is "en"')
 parser.add_argument('-augment', '--augmentation_nmt', type=str,
                     help='Whether and how to augment the data with machine translation (MT).')
@@ -113,16 +113,16 @@ if EXECUTION_TERMINAL == True:
 
 elif EXECUTION_TERMINAL == False:
   # parse args if not in terminal, but in script
-  args = parser.parse_args(["--n_trials", "10", "--n_trials_sampling", "7", "--n_trials_pruning", "7", "--n_cross_val_hyperparam", "2",  #"--context",
-                            "--dataset", "manifesto-8",
-                            "--languages", "en", "de", "es", "fr", "tr", "ru", "ko",
-                            "--language_anchor", "en", "--language_train", "en",  # in multiling scenario --language_train needs to be list of lang (?)
+  args = parser.parse_args(["--n_trials", "3", "--n_trials_sampling", "2", "--n_trials_pruning", "2", "--n_cross_val_hyperparam", "2",  #"--context",
+                            "--dataset", "pimpo",
+                            "--languages", 'sv', 'no', 'da', 'fi', 'nl', 'es', 'de', 'en', 'fr', #  "en", "de", "es", "fr", "tr", "ru", "ko",  # 'sv' 'no' 'da' 'fi' 'nl' 'es' 'de' 'en' 'fr'
+                            "--language_anchor", "en", "--language_train", "en",
                             "--augmentation_nmt", "one2anchor",  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
-                            "--sample_interval", "300",  #"100", "500", "1000", #"2500", "5000", #"10000",
+                            "--sample_interval", "100",  #"100", "500", "1000", #"2500", "5000", #"10000",
                             "--method", "classical_ml", "--model", "logistic",  # SVM, logistic
-                            "--vectorizer", "embeddings-multi",  # "tfidf", "embeddings-en", "embeddings-multi"
+                            "--vectorizer", "multi",  # "tfidf", "en", "multi"
                             "--nmt_model", "m2m_100_1.2B",  # "m2m_100_1.2B", "m2m_100_418M"
-                            "--hyperparam_study_date", "20221026"])
+                            "--hyperparam_study_date", "20221111"])
 
 
 ### args only for hyperparameter tuning
@@ -135,11 +135,11 @@ CROSS_VALIDATION_REPETITIONS_HYPERPARAM = args.n_cross_val_hyperparam
 ### args for both hyperparameter tuning and test runs
 # choose dataset
 DATASET = args.dataset  # "sentiment-news-econ" "coronanet" "cap-us-court" "cap-sotu" "manifesto-8" "manifesto-military" "manifesto-protectionism" "manifesto-morality" "manifesto-nationalway" "manifesto-44" "manifesto-complex"
-LANGUAGES = args.languages
-LANGUAGES = LANGUAGES
+#LANGUAGES = args.languages
+#LANGUAGES = LANGUAGES
 LANGUAGE_TRAIN = args.language_train
 LANGUAGE_ANCHOR = args.language_anchor
-AUGMENTATION = args.augmentation_nmt
+#AUGMENTATION = args.augmentation_nmt
 
 N_SAMPLE_DEV = args.sample_interval   # [100, 500, 1000, 2500, 5000, 10_000]  999_999 = full dataset  # cannot include 0 here to find best hypothesis template for zero-shot, because 0-shot assumes no dev set
 VECTORIZER = args.vectorizer
@@ -156,23 +156,14 @@ NMT_MODEL = args.nmt_model
 
 
 # ## Load data
-if "manifesto-8" in DATASET:
-  df_cl = pd.read_csv("./data-clean/df_manifesto_all.zip")
-  df_train = pd.read_csv(f"./data-clean/df_{DATASET}_samp_train_trans_{NMT_MODEL}_embed_tfidf.zip")
-  df_test = pd.read_csv(f"./data-clean/df_{DATASET}_samp_test_trans_{NMT_MODEL}_embed_tfidf.zip")
+if "pimpo" in DATASET:
+  df_cl = pd.read_csv("./data-clean/df_pimpo_all.zip")
+  df_train = pd.read_csv(f"./data-clean/df_{DATASET}_samp_trans_{NMT_MODEL}_embed_tfidf.zip")
+  # only doing analysis on immigration
+  df_cl = df_cl[df_cl.label_text.isin(['no_topic', 'immigration_sceptical', 'immigration_supportive', 'immigration_neutral'])]  # 'integration_neutral', 'integration_sceptical', 'integration_supportive'
+  df_train = df_train[df_train.label_text.isin(['no_topic', 'immigration_sceptical', 'immigration_supportive', 'immigration_neutral'])]  # 'integration_neutral', 'integration_sceptical', 'integration_supportive'
 else:
   raise Exception(f"Dataset name not found: {DATASET}")
-
-## special preparation of manifesto simple dataset - chose 8 or 57 labels
-if "manifesto-8" in DATASET:
-  df_cl["label_text"] = df_cl["label_domain_text"]
-  df_cl["label"] = pd.factorize(df_cl["label_text"], sort=True)[0]
-  df_train["label_text"] = df_train["label_domain_text"]
-  df_train["label"] = pd.factorize(df_train["label_text"], sort=True)[0]
-  df_test["label_text"] = df_test["label_domain_text"]
-  df_test["label"] = pd.factorize(df_test["label_text"], sort=True)[0]
-else:
-    Exception(f"Dataset not defined: {DATASET}")
 
 print(DATASET)
 
@@ -207,12 +198,6 @@ LABEL_TEXT_ALPHABETICAL = np.sort(df_cl.label_text.unique())
 TRAINING_DIRECTORY = f"results/{DATASET}"
 
 
-## data checks
-print(DATASET, "\n")
-# verify that numeric label is in alphabetical order of label_text
-labels_num_via_numeric = df_cl[~df_cl.label_text.duplicated(keep="first")].sort_values("label_text").label.tolist()  # label num via labels: get labels from data when ordering label text alphabetically
-labels_num_via_text = pd.factorize(np.sort(df_cl.label_text.unique()))[0]  # label num via label_text: create label numeric via label text
-assert all(labels_num_via_numeric == labels_num_via_text)
 
 
 # ## Load helper functions
@@ -226,7 +211,7 @@ importlib.reload(helpers)
 from helpers import compute_metrics_classical_ml, clean_memory
 
 ## functions for scenario data selection and augmentation
-from helpers import select_data_for_scenario_hp_search, select_data_for_scenario_final_test, data_augmentation, sample_for_scenario, choose_preprocessed_text
+#from helpers import select_data_for_scenario_hp_search, sample_for_scenario_hp, choose_preprocessed_text
 
 
 
@@ -266,7 +251,7 @@ def optuna_objective(trial, lang=None, n_sample=None, df_train=None, df=None):  
           'analyzer': trial.suggest_categorical("analyzer", ["word", "char_wb"]),  # could be good for languages like Korean where longer sequences of characters without a space seem to represent compound words
       }
       vectorizer_sklearn = TfidfVectorizer(lowercase=True, stop_words=None, norm="l2", use_idf=True, smooth_idf=True, **hyperparams_vectorizer)  # ngram_range=(1,2), max_df=0.9, min_df=0.02, token_pattern="(?u)\b\w\w+\b"
-  elif "embeddings" in VECTORIZER:
+  elif VECTORIZER in ["en", "multi"]:
       vectorizer_sklearn = ["somerandomstringtopreventerrorsfromoptuna"]
       hyperparams_vectorizer = {}
 
@@ -303,20 +288,7 @@ def optuna_objective(trial, lang=None, n_sample=None, df_train=None, df=None):  
                         }
   else:
       raise Exception("Method not available: ", MODEL_NAME)
-  
-  # not choosing a hypothesis template here, but the way of formatting the input text (e.g. with preceding sentence or not). need to keep same object names
-  # if statements determine, whether surrounding sentences are added, or not. Disactivated, because best to always try and test context
-  #if CONTEXT == True:
-  #  text_template_classical_ml = [template for template in list(hypothesis_hyperparams_dic.keys()) if ("not_nli" in template) and ("context" in template)]
-  #elif CONTEXT == False:
-  #text_template_classical_ml = [template for template in list(hypothesis_hyperparams_dic.keys()) if "not_nli" in template]   #and ("context" in template)
-  #else:
-  #  raise Exception(f"CONTEXT variable is {CONTEXT}. Can only be True/False")
 
-  #if len(text_template_classical_ml) >= 2:  # if there is only one reasonable text format for standard_dl
-  #  hypothesis_template = trial.suggest_categorical("hypothesis_template", text_template_classical_ml)
-  #else:
-  #  hypothesis_template = text_template_classical_ml[0]
 
   hyperparams_optuna = {**hyperparams_clf, **hyperparams_vectorizer}  # "hypothesis_template": hypothesis_template
   trial.set_user_attr("hyperparameters_all", hyperparams_optuna)
@@ -326,44 +298,73 @@ def optuna_objective(trial, lang=None, n_sample=None, df_train=None, df=None):  
   # cross-validation loop. Objective: determine F1 for specific sample for specific hyperparams, without a test set
   run_info_dic_lst = []
   for step_i, random_seed_cross_val in enumerate(np.random.choice(range(1000), size=CROSS_VALIDATION_REPETITIONS_HYPERPARAM)):
-    # delete function, was only necessary for NLI
-    #df_train_lang_samp, df_dev_lang_samp = data_preparation(random_seed=random_seed_cross_val, df_train=df_train, df=df,
-                                                  #hypothesis_template=hypothesis_template,
-                                                  #hypo_label_dic=hypothesis_hyperparams_dic[hypothesis_template],
-                                                  #format_text_func=format_text,
-    #                                              n_sample=n_sample, method=METHOD, embeddings=embeddings)
 
     ## train-validation split
     # ~50% split cross-val as recommended by https://arxiv.org/pdf/2109.12742.pdf
     test_size = 0.4
-    # test unique splitting with sentence_id
-    df_train_split_ids, df_dev_ids = train_test_split(df_train.sentence_id.unique(), test_size=test_size, shuffle=True, random_state=random_seed_cross_val)
-    df_train_split = df_train[df_train.sentence_id.isin(df_train_split_ids)]
-    df_dev = df_train[df_train.sentence_id.isin(df_dev_ids)]
-    #df_train_split, df_dev = train_test_split(df_train, test_size=test_size, shuffle=True, random_state=random_seed_cross_val, stratify=df_train["stratify_by"])  # stratify_by is language_iso + label_subcat_text; could also use language_trans_iso
+    # test unique splitting with unique sentence_id for manifesto or unique id "rn" column for pimpo
+    #if "manifesto" in DATASET:
+    #    df_train_split_ids, df_dev_ids = train_test_split(df_train.sentence_id.unique(), test_size=test_size, shuffle=True, random_state=random_seed_cross_val)
+    #    df_train_split = df_train[df_train.sentence_id.isin(df_train_split_ids)]
+    #    df_dev = df_train[df_train.sentence_id.isin(df_dev_ids)]
+    #elif "pimpo" in DATASET:
+    df_train['stratify_by'] = df_train['language_iso'].astype(str) + "_" + df_train['label_text'].astype(str)
+    df_train_split, df_dev = train_test_split(df_train, test_size=test_size, shuffle=True, random_state=random_seed_cross_val, stratify=df_train['stratify_by'])
+    #df_train_split = df_train[df_train.rn.isin(df_train_split_ids)]
+    #df_dev = df_train[df_train.rn.isin(df_dev_ids)]
     print(f"Final train test length after cross-val split: len(df_train_lang_samp) = {len(df_train_split)}, len(df_dev_lang_samp) {len(df_dev)}.")
 
-    # select data for specific language & augmentation scenario. this should also deduplicate (probably not for multiling scenario)
-    df_train_scenario, df_dev_scenario = select_data_for_scenario_hp_search(df_train=df_train_split, df_dev=df_dev, lang=lang, augmentation=AUGMENTATION, vectorizer=VECTORIZER, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR)
+    #df_train_scenario, df_dev_scenario = select_data_for_scenario_hp_search(df_train=df_train_split, df_dev=df_dev, lang=lang, augmentation=AUGMENTATION, vectorizer=VECTORIZER, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR)
+    # no augmentation here, so can just select by training languages
+    df_train_scenario = df_train_split[df_train_split.language_iso.isin(LANGUAGE_TRAIN)]
+    df_dev_scenario = df_dev[df_dev.language_iso.isin(LANGUAGE_TRAIN)]
 
     ## take sample in accordance with scenario
-    df_train_scenario_samp, df_dev_scenario_samp = sample_for_scenario(df_train_scenario=df_train_scenario, df_test_scenario=df_dev_scenario,
-                                                                       n_sample=n_sample, test_size=test_size, augmentation=AUGMENTATION, vectorizer=VECTORIZER, seed=random_seed_cross_val, lang=lang)
+    #df_train_scenario_samp, df_dev_scenario_samp = sample_for_scenario_hp(df_train_scenario=df_train_scenario, df_test_scenario=df_dev_scenario,
+    #                                                                   n_sample=n_sample, test_size=test_size, augmentation=AUGMENTATION, vectorizer=VECTORIZER,
+    #                                                                   seed=random_seed_cross_val, lang=lang, dataset=DATASET)
+    # take equal sample size for no-topic and topic
+    n_no_topic_or_topic = int(n_sample / 2)
+    df_train_scenario_samp = df_train_scenario.groupby(by="language_iso", as_index=False, group_keys=False).apply(
+        lambda x: pd.concat([x[x.label_text == "no_topic"].sample(n=min(int(n_no_topic_or_topic*(1-test_size)), len(x[x.label_text != "no_topic"])), random_state=random_seed_cross_val),
+                             x[x.label_text != "no_topic"].sample(n=min(int(n_no_topic_or_topic*(1-test_size)), len(x[x.label_text != "no_topic"])), random_state=random_seed_cross_val)
+                             ]))
+    df_dev_scenario_samp = df_dev_scenario.groupby(by="language_iso", as_index=False, group_keys=False).apply(
+        lambda x: pd.concat([x[x.label_text == "no_topic"].sample(n=min(int(n_no_topic_or_topic*(test_size)), len(x[x.label_text != "no_topic"])), random_state=random_seed_cross_val),
+                             x[x.label_text != "no_topic"].sample(n=min(int(n_no_topic_or_topic*(test_size)), len(x[x.label_text != "no_topic"])), random_state=random_seed_cross_val)
+                             ]))
+
 
     print("Number of training examples after sampling: ", len(df_train_scenario_samp))
+    print("Label distribution for df_train_scenario_samp: ", df_train_scenario_samp.label_text.value_counts())
     print("Number of validation examples after sampling: ", len(df_dev_scenario_samp))
+    print("Label distribution for df_dev_scenario_samp: ", df_dev_scenario_samp.label_text.value_counts())
+    print("\n")
 
     ### data augmentation on sample for multiling model + MT scenarios
-    df_train_scenario_samp_augment = data_augmentation(df_train_scenario_samp=df_train_scenario_samp, df_train=df_train_split, lang=lang, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR, augmentation=AUGMENTATION, vectorizer=VECTORIZER)
-    print("Number of training examples after possible augmentation: ", len(df_train_scenario_samp_augment))
+    #df_train_scenario_samp_augment = data_augmentation(df_train_scenario_samp=df_train_scenario_samp, df_train=df_train_split, lang=lang, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR, augmentation=AUGMENTATION, vectorizer=VECTORIZER, dataset=DATASET)
+    #print("Number of training examples after possible augmentation: ", len(df_train_scenario_samp_augment))
+    #print("Label distribution for df_train_scenario_samp_augment: ", df_train_scenario_samp_augment.label_text.value_counts())
 
 
     clean_memory()
-    ## ! choose correct pre-processed text column here
+    ## choose correct pre-processed text column here
     # possible vectorizers: "tfidf", "embeddings-en", "embeddings-multi"
-    X_train, X_test = choose_preprocessed_text(df_train_scenario_samp_augment=df_train_scenario_samp_augment, df_test_scenario=df_dev_scenario_samp, augmentation=AUGMENTATION, vectorizer=VECTORIZER, vectorizer_sklearn=vectorizer_sklearn, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR, method=METHOD)
+    #X_train, X_test = choose_preprocessed_text(df_train_scenario_samp_augment=df_train_scenario_samp, df_test_scenario=df_dev_scenario_samp, augmentation=AUGMENTATION, vectorizer=VECTORIZER, vectorizer_sklearn=vectorizer_sklearn, language_train=LANGUAGE_TRAIN, language_anchor=LANGUAGE_ANCHOR, method=METHOD)
+    if VECTORIZER == "tfidf":
+        # fit vectorizer on entire dataset - theoretically leads to some leakage on feature distribution in TFIDF (but is very fast, could be done for each test. And seems to be common practice) - OOV is actually relevant disadvantage of classical ML  #https://github.com/vanatteveldt/ecosent/blob/master/src/data-processing/19_svm_gridsearch.py
+        vectorizer_sklearn.fit(pd.concat([df_train_scenario_samp.text_trans_concat_tfidf, df_dev_scenario_samp.text_trans_concat_tfidf]))
+        X_train = vectorizer_sklearn.transform(df_train_scenario_samp.text_trans_concat_tfidf)
+        X_test = vectorizer_sklearn.transform(df_dev_scenario_samp.text_trans_concat_tfidf)
+    elif "en" == VECTORIZER:
+        X_train = np.array([ast.literal_eval(lst) for lst in df_train_scenario_samp.text_trans_concat_embed_en.astype('object')])
+        X_test = np.array([ast.literal_eval(lst) for lst in df_dev_scenario_samp.text_trans_concat_embed_en.astype('object')])
+    elif "multi" == VECTORIZER:
+        X_train = np.array([ast.literal_eval(lst) for lst in df_train_scenario_samp.text_concat_embed_multi.astype('object')])
+        X_test = np.array([ast.literal_eval(lst) for lst in df_dev_scenario_samp.text_concat_embed_multi.astype('object')])
 
-    y_train = df_train_scenario_samp_augment.label
+
+    y_train = df_train_scenario_samp.label
     y_test = df_dev_scenario_samp.label
 
     # training on train set sample
@@ -380,7 +381,7 @@ def optuna_objective(trial, lang=None, n_sample=None, df_train=None, df=None):  
     # metrics
     metric_step = compute_metrics_classical_ml(label_pred, label_gold, label_text_alphabetical=np.sort(df.label_text.unique()))
 
-    run_info_dic = {"method": METHOD, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "n_sample": n_sample, "model": MODEL_NAME, "results": metric_step, "hyper_params": hyperparams_optuna}
+    run_info_dic = {"method": METHOD, "vectorizer": VECTORIZER, "augmentation": None, "n_sample": n_sample, "model": MODEL_NAME, "results": metric_step, "hyper_params": hyperparams_optuna}
     run_info_dic_lst.append(run_info_dic)
     
     # Report intermediate objective value.
@@ -437,43 +438,28 @@ hp_study_dic = {}
 for n_sample in N_SAMPLE_DEV:
     hp_study_dic_scenario = {}
 
-    for lang in tqdm.tqdm(LANGUAGES, leave=False):
+    study = run_study(n_sample=n_sample)  #lang=lang
 
-      #if (lang == LANGUAGE_TRAIN) and (AUGMENTATION in ["no-nmt-single", "one2anchor", "one2many"]):
-          # if train-lang is en, then no testing on en as target-lang necessary (?) - safer to keep in for now, can remove results later ?  also consider what this means for final runs
-          #continue
+    print("Study params: ", LANGUAGE_TRAIN, f" {VECTORIZER}_{MODEL_NAME.split('/')[-1]}_{DATASET}_{n_sample}")
+    print("Best study value: ", study.best_value)
+    hp_study_dic_lang = {"language_train": LANGUAGE_TRAIN, "vectorizer": VECTORIZER, "augmentation": None, "method": METHOD, "n_sample": n_sample, "dataset": DATASET, "algorithm": MODEL_NAME, "nmt_model": NMT_MODEL, "optuna_study": study}
+    hp_study_dic_scenario.update(hp_study_dic_lang)
 
-      study = run_study(n_sample=n_sample, lang=lang)
-      print(f"Run for language {lang} finished.")
-
-      if (AUGMENTATION in ["no-nmt-single", "one2many", "many2anchor"]) or ((AUGMENTATION in ["no-nmt-many", "many2many"]) and (VECTORIZER in ["embeddings-multi"])) or ((AUGMENTATION in ["one2anchor"]) and (VECTORIZER in ["tfidf", "embeddings-en"])):
-          print("Study params: ", LANGUAGES, f" {AUGMENTATION}_{VECTORIZER}_{MODEL_NAME.split('/')[-1]}_{DATASET}_{n_sample}")
-          print("Best study value: ", study.best_value)
-          hp_study_dic_lang = {"language": LANGUAGES, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "method": METHOD, "n_sample": n_sample, "dataset": DATASET, "algorithm": MODEL_NAME, "nmt_model": NMT_MODEL, "optuna_study": study}
-          hp_study_dic_scenario.update(hp_study_dic_lang)
-          break  # these runs do not need different hp-searches for different lang
-      elif ((AUGMENTATION in ["no-nmt-many", "many2many"]) and (VECTORIZER != "embeddings-multi")) or ((AUGMENTATION in ["one2anchor"]) and (VECTORIZER in ["embeddings-multi"])):
-          print("Study params: ", lang, f" {AUGMENTATION}_{VECTORIZER}_{MODEL_NAME.split('/')[-1]}_{DATASET}_{n_sample}")
-          print("Best study value: ", study.best_value)
-          hp_study_dic_lang = {lang: {"language": lang, "vectorizer": VECTORIZER, "augmentation": AUGMENTATION, "method": METHOD, "n_sample": n_sample, "dataset": DATASET, "algorithm": MODEL_NAME, "nmt_model": NMT_MODEL, "optuna_study": study} }
-          hp_study_dic_scenario.update(hp_study_dic_lang)
-
-    hp_study_dic_scenario = {f"{AUGMENTATION}_{VECTORIZER}_{MODEL_NAME.split('/')[-1]}_{DATASET}_{n_sample}_{NMT_MODEL}": hp_study_dic_scenario}
+    hp_study_dic_scenario = {f"{VECTORIZER}_{MODEL_NAME.split('/')[-1]}_{DATASET}_{n_sample}_{NMT_MODEL}": hp_study_dic_scenario}
     hp_study_dic.update(hp_study_dic_scenario)
 
     # harmonise length of n_sample string (always 5 characters)
     while len(str(n_sample)) <= 4:
         n_sample = "0" + str(n_sample)
 
+    lang_str = "-".join(LANGUAGE_TRAIN)
+
     ## save studies
     if EXECUTION_TERMINAL == True:
-      joblib.dump(hp_study_dic_scenario, f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample}samp_{DATASET}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}.pkl")
+      joblib.dump(hp_study_dic_scenario, f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{VECTORIZER}_{n_sample}samp_{DATASET}_{lang_str}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}.pkl")
     elif EXECUTION_TERMINAL == False:
-      joblib.dump(hp_study_dic_scenario, f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{AUGMENTATION}_{VECTORIZER}_{n_sample}samp_{DATASET}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}_t.pkl")
+      joblib.dump(hp_study_dic_scenario, f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{VECTORIZER}_{n_sample}samp_{DATASET}_{lang_str}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}_t.pkl")
 
-## stop carbon tracker
-#if CARBON_TRACKING:
-#  tracker.stop()  # writes csv file to directory specified during initialisation. Does not overwrite csv, but append new runs
 
 print("Run done.")
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Set batch job requirements
-#SBATCH -t 30:00:00
+#SBATCH -t 20:00:00
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -21,7 +21,7 @@ pip install -r requirements.txt
 
 
 ## generalised loop
-method_lst='nli standard_dl'  # nli, standard_dl, (transformer-embed)
+method_lst='nli standard_dl'  # nli, standard_dl, dl_embed
 vectorizer_lst='en multi'  # en, multi
 model_size_lst='base large'
 languages_lst="en en-de en-de-sv-fr"  # "en", "en-de", "en-de-sv-fr"
@@ -31,7 +31,7 @@ max_epochs=50  # only taken into account for standard_dl
 max_length=320
 study_date=221111
 hypothesis='long'
-nmt_model='m2m_100_418M'  # m2m_100_418M, m2m_100_1.2B
+nmt_model='m2m_100_1.2B'  # m2m_100_418M, m2m_100_1.2B
 
 
 for model_size in $model_size_lst

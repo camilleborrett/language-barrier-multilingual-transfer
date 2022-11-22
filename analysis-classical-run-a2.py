@@ -67,18 +67,11 @@ DATASET = "pimpo"
 
 TRAINING_DIRECTORY = f"results/{DATASET}"
 
-if (VECTORIZER == "multi") and (METHOD == "nli") and (MODEL_SIZE == "base"):
-    MODEL_NAME = "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
-elif (VECTORIZER == "en") and (METHOD == "nli") and (MODEL_SIZE == "base"):
-    MODEL_NAME = "MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli"  #"MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli-ling-wanli"  "MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli"
-elif (VECTORIZER == "multi") and (METHOD == "standard_dl") and (MODEL_SIZE == "base"):
-    MODEL_NAME = "microsoft/mdeberta-v3-base"
-elif (VECTORIZER == "en") and (METHOD == "standard_dl") and (MODEL_SIZE == "base"):
-    MODEL_NAME = "microsoft/deberta-v3-base"  # microsoft/deberta-v3-large, "microsoft/deberta-v3-base"
-elif (VECTORIZER == "en") and (METHOD == "nli") and (MODEL_SIZE == "large"):
-    MODEL_NAME = "MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli-ling-wanli"
-elif (VECTORIZER == "en") and (METHOD == "standard_dl") and (MODEL_SIZE == "large"):
-    MODEL_NAME = "microsoft/deberta-v3-large"
+
+if (VECTORIZER == "en") and (METHOD == "transf_embed"):
+    MODEL_NAME = "logistic"  #"transf_embed_en"
+elif (VECTORIZER == "multi") and (METHOD == "transf_embed"):
+    MODEL_NAME = "logistic"  #"transf_embed_multi"
 else:
     raise Exception(f"VECTORIZER {VECTORIZER} or METHOD {METHOD} not implemented")
 
@@ -103,12 +96,11 @@ import helpers
 import importlib  # in case of manual updates in .py file
 importlib.reload(helpers)
 from helpers import compute_metrics_standard, clean_memory, compute_metrics_nli_binary
-from helpers import load_model_tokenizer, tokenize_datasets, set_train_args, create_trainer, format_nli_trainset, format_nli_testset
+#from helpers import load_model_tokenizer, tokenize_datasets, set_train_args, create_trainer, format_nli_trainset, format_nli_testset
 
 
 ##### load dataset
 df = pd.read_csv(f"./data-clean/df_pimpo_samp_trans_{MT_MODEL}_embed_tfidf.zip")
-
 
 
 ### inspect data
@@ -131,15 +123,17 @@ df_inspection_parfam = pd.DataFrame(inspection_parfam_dic)
 
 # choose bigger text window to improve performance and imitate annotation input
 if VECTORIZER == "multi":
-    if METHOD == "standard_dl":
-        df["text_prepared"] = df["text_preceding"].fillna('') + " " + df["text_original"] + " " + df["text_following"].fillna('')
-    elif METHOD == "nli":
-        df["text_prepared"] = df["text_preceding"].fillna('') + '. The quote: "' + df["text_original"] + '". ' + df["text_following"].fillna('')
+    df["text_prepared"] = df["text_original_trans_embed_multi"]
+    #if METHOD == "standard_dl":
+    #    df["text_prepared"] = df["text_preceding"].fillna('') + " " + df["text_original"] + " " + df["text_following"].fillna('')
+    #elif METHOD == "nli":
+    #    df["text_prepared"] = df["text_preceding"].fillna('') + '. The quote: "' + df["text_original"] + '". ' + df["text_following"].fillna('')
 elif VECTORIZER == "en":
-    if METHOD == "standard_dl":
-        df["text_prepared"] = df["text_preceding_trans"].fillna('') + ' ' + df["text_original_trans"] + ' ' + df["text_following_trans"].fillna('')
-    elif METHOD == "nli":
-        df["text_prepared"] = df["text_preceding_trans"].fillna('') + '. The quote: "' + df["text_original_trans"] + '". ' + df["text_following_trans"].fillna('')
+    df["text_prepared"] = df["text_original_trans_embed_en"]
+    #if METHOD == "standard_dl":
+    #    df["text_prepared"] = df["text_preceding_trans"].fillna('') + ' ' + df["text_original_trans"] + ' ' + df["text_following_trans"].fillna('')
+    #elif METHOD == "nli":
+    #    df["text_prepared"] = df["text_preceding_trans"].fillna('') + '. The quote: "' + df["text_original_trans"] + '". ' + df["text_following_trans"].fillna('')
 else:
     raise Exception(f"Vectorizer {VECTORIZER} not implemented.")
 
@@ -170,9 +164,10 @@ df_train = df_cl[df_cl.language_iso.isin(LANGUAGE_LST)]
 
 # take sample for all topical labels - should not be more than SAMPLE (e.g. 500) per language to simulate realworld situation and prevent that adding some languages adds much more data than adding other languages - theoretically each coder can code n SAMPLE data
 task_label_text_wo_notopic = task_label_text[:3]
-df_train_samp1 = df_train.groupby(by="language_iso", as_index=False, group_keys=False).apply(lambda x: x[x.label_text.isin(task_label_text_wo_notopic)].sample(n=min(len(x[x.label_text.isin(task_label_text_wo_notopic)]), MAX_SAMPLE_LANG), random_state=42))
-df_train_samp2 = df_train.groupby(by="language_iso", as_index=False, group_keys=False).apply(lambda x: x[x.label_text == "no_topic"].sample(n=min(len(x[x.label_text == "no_topic"]), MAX_SAMPLE_LANG), random_state=42))
+df_train_samp1 = df_train.groupby(by="language_iso", as_index=False, group_keys=False).apply(lambda x: x[x.label_text.isin(task_label_text_wo_notopic)].sample(n=min(len(x[x.label_text.isin(task_label_text_wo_notopic)]), MAX_SAMPLE_LANG), random_state=SEED_GLOBAL))
+df_train_samp2 = df_train.groupby(by="language_iso", as_index=False, group_keys=False).apply(lambda x: x[x.label_text == "no_topic"].sample(n=min(len(x[x.label_text == "no_topic"]), MAX_SAMPLE_LANG), random_state=SEED_GLOBAL))
 df_train = pd.concat([df_train_samp1, df_train_samp2])
+# could have also used len(df_train_samp1) for sampling df_train_samp2 instead of max_samp. Then could have avoided three lines below and possible different numbers in sampling across languages.
 
 # for df_train reduce n no_topic data to same length as all topic data combined
 df_train_topic = df_train[df_train.label_text != "no_topic"]
@@ -194,55 +189,27 @@ assert len(df_train) + len(df_test) == len(df_cl)
 #df_test = df_test.sample(n=min(SAMPLE_DF_TEST, len(df_test)), random_state=SEED_GLOBAL)
 
 
-### format data if NLI
 
-if TASK == "immigration":
-    if HYPOTHESIS == "short":
-        hypo_label_dic = {
-            "immigration_neutral": "The quote is neutral towards immigration or describes the status quo of immigration.",
-            "immigration_sceptical": "The quote is sceptical of immigration.",
-            "immigration_supportive": "The quote is supportive of immigration.",
-            "no_topic": "The quote is not about immigration.",
-        }
-    elif HYPOTHESIS == "long":
-        hypo_label_dic = {
-            "immigration_neutral": "The quote describes immigration neutrally without implied value judgement or describes the status quo of immigration, for example only stating facts or using technocratic language about immigration",
-            "immigration_sceptical": "The quote describes immigration sceptically / disapprovingly. For example, the quote could mention the costs of immigration, be against migrant workers, state that foreign labour decreases natives' wages, that there are already enough refugees, refugees are actually economic migrants, be in favour of stricter immigration controls, exceptions to the freedom of movement in the EU.",
-            "immigration_supportive": "The quote describes immigration favourably / supportively. For example, the quote could mention the benefits of immigration, the need for migrant workers, international obligations to take in refugees, protection of human rights, in favour of family reunification or freedom of movement in the EU.",
-            "no_topic": "The quote is not about immigration.",
-        }
-    else:
-        raise Exception(f"Hypothesis {HYPOTHESIS} not implemented")
-elif TASK == "integration":
-    if HYPOTHESIS == "short":
-        hypo_label_dic = {
-            "integration_neutral": "The quote is neutral towards immigrant integration or describes the status quo of immigrant integration.",
-            "integration_sceptical": "The quote is sceptical of immigrant integration.",
-            "integration_supportive": "The quote is supportive of immigrant integration.",
-            "no_topic": "The quote is not about immigrant integration.",
-        }
-    elif HYPOTHESIS == "long":
-        hypo_label_dic = {
-            "integration_neutral": "The quote describes immigrant integration neutrally or describes the status quo of immigrant integration, for example only stating facts or using technocratic language about immigrant integration",
-            "integration_sceptical": "The quote describes immigrant integration sceptically / disapprovingly. For example, the quote could mention negative references to multiculturalism and diversity, underline the importance of ethnic homogeneity and national culture, call for immigrants to give up their culture of origin, warn of islamization, mention duties in order to stay in the country, demand integration tests, associate immigrant communities with problems or crimes, demand an oath of allegiance of immigrants, or underline ethnic criteria for receiving citizenship.",
-            "integration_supportive": "The quote describes immigrant integration favourably / supportively. For example, the quote could mention positive references to multiculturalism and diversity, underline cosmopolitan values towards immigrants, demand inclusion of immigrants, demand anti-discrimination policies based on ethnicity and origin, demand policies against racism, demand more rights for immigrants, or underline civic values instead of ethnic values for being able to receive citizenship.",
-            "no_topic": "The quote is not about immigrant integration.",
-        }
-    else:
-        raise Exception(f"Hypothesis {HYPOTHESIS} not implemented")
-else:
-    raise Exception(f"Task {TASK} not implemented")
+#if METHOD == "standard_dl":
+#    df_train_format = df_train
+#    df_test_format = df_test
+#elif METHOD == "nli":
+#    df_train_format = format_nli_trainset(df_train=df_train, hypo_label_dic=hypo_label_dic, random_seed=42)
+#    df_test_format = format_nli_testset(df_test=df_test, hypo_label_dic=hypo_label_dic)
+#if METHOD == "transf_embed":
+df_train_format = df_train
+df_test_format = df_test
 
-
-if METHOD == "standard_dl":
-    df_train_format = df_train
-    df_test_format = df_test
-elif METHOD == "nli":
-    df_train_format = format_nli_trainset(df_train=df_train, hypo_label_dic=hypo_label_dic, random_seed=42)
-    df_test_format = format_nli_testset(df_test=df_test, hypo_label_dic=hypo_label_dic)
 
 
 ##### train classifier
+
+## ! do hp-search in separate script. should not take too long
+
+
+
+
+
 label_text_alphabetical = np.sort(df_cl.label_text.unique())
 
 model, tokenizer = load_model_tokenizer(model_name=MODEL_NAME, method=METHOD, label_text_alphabetical=label_text_alphabetical, model_max_length=MODEL_MAX_LENGTH)

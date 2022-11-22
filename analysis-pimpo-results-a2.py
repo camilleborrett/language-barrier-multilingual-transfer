@@ -18,22 +18,23 @@ importlib.reload(helpers_pimpo)
 from helpers_pimpo import load_data, calculate_distribution, compute_correlation, compute_metrics_standard
 
 
-"""LANGUAGES = ["en"] # ["en"] ["en", "de"] ["en", "de", "sv", "fr"]
+"""LANGUAGES = ["en", "de", "sv", "fr"]  # [["en"], ["en", "de"], ["en", "de", "sv", "fr"]]
 DATE = "221111"
 TASK = "immigration"  # "immigration", "integration
 METHOD = "nli"  # standard_dl nli
-VECTORIZER = "en"
+VECTORIZER = "multi"  # ["en", "multi"]
 HYPOTHESIS = "long"
 MAX_SAMPLE_LANG = "500"
-MODEL_SIZE = "base"  # base, large
-
-META_DATA = "parfam_text"  # "parfam_text", "country_iso", "language_iso", "decade"
+META_DATA = "language_iso"  #["parfam_text", "country_iso", "language_iso", "decade"]
+MODEL_SIZE = "base"   #["base", "large"]
 NORMALIZE = True
-EXCLUDE_NO_TOPIC = True
-"""
+EXCLUDE_NO_TOPIC = True"""
 
 ## load data
-#df_cl = load_data()
+# ! decide whether to exclude also test texts from train langs (for cross-ling transfer tests) or include them for accurate population simulation
+# going for inclusion of test texts from all languages, also test form lang train. reflects population better and scenarios across decades etc. have more data
+#df_cl = load_data(languages=LANGUAGES, task=TASK, method=METHOD, model_size=MODEL_SIZE, hypothesis=HYPOTHESIS, vectorizer=VECTORIZER, max_sample_lang=MAX_SAMPLE_LANG, date=DATE)
+
 
 ## Calculate predicted or true distribution by meta data
 #df_viz_pred_counts = calculate_distribution(df_func=df_cl, df_label_col="label_text_pred")
@@ -41,7 +42,6 @@ EXCLUDE_NO_TOPIC = True
 
 ## calculating correlation
 #corr_dic = compute_correlation(df_viz_true_counts=df_viz_true_counts, df_viz_pred_counts=df_viz_pred_counts)
-
 
 ## calculating classical ml metrics
 # ! computing labels for all 4 classes here including no-topic (on 3 not possible, because different length)
@@ -60,7 +60,9 @@ MAX_SAMPLE_LANG = "500"
 META_DATA_LST = ["parfam_text", "country_iso", "language_iso", "decade"]
 MODEL_SIZE_LST = ["base", "large"]
 NORMALIZE = True
-EXCLUDE_NO_TOPIC = False
+EXCLUDE_NO_TOPIC = True
+
+# !! add AGR parfam again - still has some bug
 
 # prediction only for languages not in training data
 data_test = []
@@ -97,28 +99,44 @@ df_results = df_results[['meta_data', 'method', 'vectorizer', 'size', 'languages
 # !? issue with standard_dl, en, base, if only trained on en
 
 
-### correlate performance with different methods
+#### Analysis which factor improves performance the most
+# correlate performance with different methods
 from scipy.stats import spearmanr
 #pearsonr(df_results.method, df_results.corr_labels_avg)
 df_results_corr = df_results.copy(deep=True)
-df_results_corr["method"] = pd.Categorical(df_results_corr["method"], ["standard_dl", "nli"])
+df_results_corr["algorithm"] = pd.Categorical(df_results_corr["method"], ["standard_dl", "nli"])
 df_results_corr["size"] = pd.Categorical(df_results_corr["size"], ["base", "large"])
-df_results_corr["vectorizer"] = pd.Categorical(df_results_corr["vectorizer"], ["en", "multi"])
+df_results_corr["representation"] = pd.Categorical(df_results_corr["vectorizer"], ["en", "multi"])
 df_results_corr["languages"] = pd.Categorical(df_results_corr["languages"], ["en", "en-de", "en-de-sv-fr"])
-df_results_corr["method_factor"] = df_results_corr["method"].factorize(sort=True)[0]
+df_results_corr["algorithm_factor"] = df_results_corr["algorithm"].factorize(sort=True)[0]
 df_results_corr["size_factor"] = df_results_corr["size"].factorize(sort=True)[0]
-df_results_corr["vectorizer_factor"] = df_results_corr["vectorizer"].factorize(sort=True)[0]
+df_results_corr["representation_factor"] = df_results_corr["representation"].factorize(sort=True)[0]
 df_results_corr["languages_factor"] = df_results_corr["languages"].factorize(sort=True)[0]
 
 #corr_spearman = spearmanr(df_results_corr[["method_factor", "size_factor", "vectorizer_factor", "languages_factor", "corr_labels_avg"]])  # , df_results_corr.corr_labels_avg
-df_results_corr = df_results_corr[["method_factor", "size_factor", "vectorizer_factor", "languages_factor", "corr_labels_avg", "f1_macro", "accuracy"]]
+df_results_corr = df_results_corr[["algorithm_factor", "size_factor", "representation_factor", "languages_factor", "corr_labels_avg", "f1_macro", "accuracy"]]
 df_corr_spearman = df_results_corr.corr(method="spearman")
 # add p-value / significance
 #rho = df.corr()
 df_corr_pval = df_corr_spearman.corr(method=lambda x, y: spearmanr(x, y)[1]) - np.eye(*df_corr_spearman.shape)
-df_corr_pval = df_corr_pval.applymap(lambda x: ''.join(['*' for t in [0.001, 0.01, 0.05] if x<=t]))
+df_corr_pval = df_corr_pval.applymap(lambda x: ''.join(['*' for t in [0.001, 0.01, 0.05] if x <= t]))
 df_results_corr = df_corr_spearman.round(2).astype(str) + df_corr_pval
 df_results = df_results.round(2)
+
+# rename some values and columns
+df_results = df_results.rename(columns={"languages": "training languages", "f1_macro": "F1 macro", "method": "algorithm",
+                                        "vectorizer": "language representation", "corr_labels_avg": "correlation r",
+                                        "meta_data": "meta data", "size": "algorithm size", "decade": "time"})
+
+algorithm_map = {
+    "nli": "Transformer-NLI", "standard_dl": "Transformer"
+}
+df_results["algorithm"] = df_results["algorithm"].map(algorithm_map)
+
+# write to disk
+df_results.to_excel("./results/pimpo/tables/df_results_pimpo.xlsx")
+df_results_corr.to_excel("./results/pimpo/tables/df_results_pimpo_corr.xlsx")
+
 
 print("Run Done.")
 
