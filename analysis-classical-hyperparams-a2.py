@@ -466,9 +466,9 @@ for n_sample in N_SAMPLE_DEV:
 
     ## save studies
     if EXECUTION_TERMINAL == True:
-      joblib.dump(hp_study_dic_scenario, f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{VECTORIZER}_{n_sample}samp_{DATASET}_{lang_str}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}.pkl")
+      joblib.dump(hp_study_dic_scenario, f"./{TRAINING_DIRECTORY}/optuna/optuna_study_{MODEL_NAME.split('/')[-1]}_{VECTORIZER}_{n_sample}samp_{DATASET}_{lang_str}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}.pkl")
     elif EXECUTION_TERMINAL == False:
-      joblib.dump(hp_study_dic_scenario, f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{VECTORIZER}_{n_sample}samp_{DATASET}_{lang_str}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}_t.pkl")
+      joblib.dump(hp_study_dic_scenario, f"./{TRAINING_DIRECTORY}/optuna/optuna_study_{MODEL_NAME.split('/')[-1]}_{VECTORIZER}_{n_sample}samp_{DATASET}_{lang_str}_{NMT_MODEL}_{HYPERPARAM_STUDY_DATE}_t.pkl")
 
 
 print("Run done.")

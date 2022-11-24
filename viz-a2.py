@@ -8,27 +8,28 @@ import os
 # ## Load helper functions
 import sys
 sys.path.insert(0, os.getcwd())
-import helpers_pimpo
+import helpers_a2
 import importlib  # in case of manual updates in .py file
 importlib.reload(helpers_pimpo)
 
-from helpers_pimpo import load_data, calculate_distribution, compute_correlation, compute_metrics_standard
+from helpers_a2 import load_data, calculate_distribution, compute_correlation, compute_metrics_standard
 
 
 ### create overview df
 
-LANGUAGES = ["en", "de", "sv", "fr"]  # [["en"], ["en", "de"], ["en", "de", "sv", "fr"]]
+LANGUAGES = ["en", "de"]  # [["en"], ["en", "de"], ["en", "de", "sv", "fr"]]
 DATE = "221111"
 TASK = "immigration"  # "immigration", "integration
 METHOD = "nli"  # standard_dl nli
 VECTORIZER = "en" # ["en", "multi"]
 HYPOTHESIS = "long"
 MAX_SAMPLE_LANG = "500"
-META_DATA = "decade"  #["parfam_text", "country_iso", "language_iso", "decade"]
+META_DATA = "parfam_text"  #["parfam_text", "country_iso", "language_iso", "decade"]
 MODEL_SIZE = "large"  #["base", "large"]
 NORMALIZE = True
 EXCLUDE_NO_TOPIC = True
 
+# !! add AGR parfam again - still has some bug
 
 df_cl = load_data(languages=LANGUAGES, task=TASK, method=METHOD, model_size=MODEL_SIZE, hypothesis=HYPOTHESIS, vectorizer=VECTORIZER, max_sample_lang=MAX_SAMPLE_LANG, date=DATE)
 df_viz_pred_counts = calculate_distribution(df_func=df_cl, df_label_col="label_text_pred", exclude_no_topic=EXCLUDE_NO_TOPIC, normalize=NORMALIZE, meta_data=META_DATA)

@@ -220,7 +220,7 @@ while len(str(n_sample_string)) <= 4:
     n_sample_string = "0" + str(n_sample_string)
 
 import joblib
-hp_study_dic = joblib.load(f"./{TRAINING_DIRECTORY}/optuna_study_{MODEL_NAME.split('/')[-1]}_{VECTORIZER}_{n_sample_string}samp_{DATASET}_{'-'.join(LANGUAGE_LST)}_{MT_MODEL}_{DATE}.pkl")
+hp_study_dic = joblib.load(f"./{TRAINING_DIRECTORY}/optuna/optuna_study_{MODEL_NAME.split('/')[-1]}_{VECTORIZER}_{n_sample_string}samp_{DATASET}_{'-'.join(LANGUAGE_LST)}_{MT_MODEL}_{DATE}.pkl")
 hp_study_dic = next(iter(hp_study_dic.values()))  # unnest dic
 
 hyperparams = hp_study_dic['optuna_study'].best_trial.user_attrs["hyperparameters_all"]
@@ -286,8 +286,6 @@ print(results_test)
 assert (df_test["label"] == results_test["eval_label_gold_raw"]).all
 df_test["label_pred"] = results_test["eval_label_predicted_raw"]
 
-# ! careful about this - adding true labels to label_pred col for those where annotation is available - not really a prediction, but we know the pred in this context thanks to annotation
-# mostly adding this to avoid downstream errors (but also reflects available knowledge for the approach)
 df_train["label_pred"] = [np.nan] * len(df_train["label"])
 
 df_cl_concat = pd.concat([df_train, df_test])
