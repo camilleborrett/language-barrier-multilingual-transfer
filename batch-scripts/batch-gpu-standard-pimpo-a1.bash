@@ -78,3 +78,17 @@ done
 
 echo Entire script done
 
+
+
+## manual runs
+:"
+python analysis-transf-run-a1.py --n_cross_val_final 3 \
+           --dataset 'pimpo_samp_a1' --languages 'sv' 'no' 'da' 'fi' 'nl' 'es' 'de' 'en' 'fr' --language_anchor 'en' --language_train 'en' --nmt_model 'm2m_100_418M' \
+           --augmentation_nmt 'many2many' --model 'transformer' --vectorizer 'embeddings-multi' --method 'standard_dl' --max_epochs 50 --max_length 256 \
+           --sample_interval 500 --hyperparam_study_date 221111  &> ./results/pimpo_samp_a1/logs/run-transformer-standard_dl-many2many-embeddings-multi-500-pimpo_samp_a1-m2m_100_418M-221111-logs.txt
+
+python analysis-transf-run-a1.py --n_cross_val_final 3 \
+           --dataset 'pimpo_samp_a1' --languages 'sv' 'no' 'da' 'fi' 'nl' 'es' 'de' 'en' 'fr' --language_anchor 'en' --language_train 'en' --nmt_model 'm2m_100_418M' \
+           --augmentation_nmt 'many2many' --model 'transformer' --vectorizer 'embeddings-multi' --method 'nli' --max_epochs 20 --max_length 256 \
+           --sample_interval 500 --hyperparam_study_date 221111  &> ./results/pimpo_samp_a1/logs/run-transformer-nli-many2many-embeddings-multi-500-pimpo_samp_a1-m2m_100_418M-221111-logs.txt
+"
