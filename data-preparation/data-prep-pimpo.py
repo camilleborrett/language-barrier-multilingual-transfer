@@ -255,27 +255,6 @@ df_cl = df_cl[["label", "label_text", 'country_iso', 'language_iso', "doc_id", #
                ]]
 
 
-## inspect label distributions
-# language
-inspection_lang_dic = {}
-for lang in df_cl.language_iso.unique():
-    inspection_lang_dic.update({lang: df_cl[df_cl.language_iso == lang].label_text.value_counts()})
-df_inspection_lang = pd.DataFrame(inspection_lang_dic)
-# party family
-inspection_parfam_dic = {}
-for parfam in df_cl.parfam_text.unique():
-    inspection_parfam_dic.update({parfam: df_cl[df_cl.parfam_text == parfam].label_text.value_counts()})
-df_inspection_parfam = pd.DataFrame(inspection_parfam_dic)
-# country
-inspection_country_dic = {}
-for country_iso in df_cl.country_iso.unique():
-    inspection_country_dic.update({country_iso: df_cl[df_cl.country_iso == country_iso].label_text.value_counts()})
-df_inspection_country = pd.DataFrame(inspection_country_dic)
-
-# these tables still include the gaelic Irish texts for English and potential swedish texts as finnish
-df_inspection_lang.to_excel("./appendix/df_pimpo_distribution_lang.xlsx", index=True)
-df_inspection_parfam.to_excel("./appendix/df_pimpo_distribution_parfam.xlsx", index=True)
-df_inspection_country.to_excel("./appendix/df_pimpo_distribution_country.xlsx", index=True)
 
 # write compressed csv
 file_name = "df_pimpo_all"
