@@ -48,7 +48,7 @@ def calculate_distribution(df_func=None, df_label_col="label_text_pred", exclude
     # enforce ordering of columns to get custom column order for viz
     if meta_data == "parfam_text":
         parfam_paper_order = ["ECO", "ETH", "AGR", "LEF", "CHR", "LIB", "SOC", "CON", "NAT"]  # does not include SIP
-        parfam_lr_order = ["ECO", "LEF", "SOC", "LIB", "CHR", "CON", "NAT", "ETH", "AGR", "SIP"]  # include SIP? not in paper
+        parfam_lr_order = ["ECO", "LEF", "SOC", "LIB", "CHR", "CON", "NAT", "AGR", "ETH", "SIP"]  # include SIP? not in paper
         df_viz_counts[meta_data] = pd.Categorical(df_viz_counts[meta_data], parfam_lr_order)
         df_viz_counts = df_viz_counts.sort_values([meta_data, "label_text"])
         #df_viz_counts = df_viz_counts[~df_viz_counts[meta_data].isna()]  # remove parfam (SIP) which is not in pimpo paper / categorical above. does not fundamentally impact the results. Does make some classifiers worse
