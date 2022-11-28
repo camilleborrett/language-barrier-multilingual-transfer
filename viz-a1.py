@@ -113,8 +113,8 @@ df_results_multi = df_results_multi[[col for col in df_results_multi.columns if 
 
 
 # write to disk
-df_results_mono.to_excel("./results/tables/df_results_mono_500samp.xlsx")
-df_results_multi.to_excel("./results/tables/df_results_multi_500samp.xlsx")
+df_results_mono.to_excel("./results/viz-a1/df_results_mono_500samp.xlsx")
+df_results_multi.to_excel("./results/viz-a1/df_results_multi_500samp.xlsx")
 
 
 
@@ -139,7 +139,7 @@ df_results_corr = df_corr_spearman.round(2).astype(str) + df_corr_pval
 df_results = df_results.round(2)
 
 # write to disk
-df_results_corr.to_excel("./results/tables/df_results_corr_500samp.xlsx")
+df_results_corr.to_excel("./results/viz-a1/df_results_corr_500samp.xlsx")
 
 
 print("Run done.")

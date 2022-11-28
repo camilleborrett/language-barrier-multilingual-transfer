@@ -183,8 +183,8 @@ df_results_parfam = df_results_parfam.sort_values(by=["algorithm", "average corr
 
 
 ## write to disk
-df_results.to_excel("./results/pimpo/tables/df_results_pimpo.xlsx")
-df_results_corr.to_excel("./results/pimpo/tables/df_results_pimpo_corr.xlsx")
+df_results.to_excel("./results/viz-a2/df_results_pimpo.xlsx")
+df_results_corr.to_excel("./results/viz-a2/df_results_pimpo_corr.xlsx")
 
 print("Run Done.")
 
@@ -200,8 +200,6 @@ if META_METRICS_ANALYSIS:
         mean_performance = df_results.groupby(by="algorithm").apply(lambda x: x[x["algorithm size"] == "base"][metric].mean())
         mean_performance_dic.update({metric: mean_performance})
     df_mean_performance = pd.DataFrame(mean_performance_dic)
-
-
 
 
 
