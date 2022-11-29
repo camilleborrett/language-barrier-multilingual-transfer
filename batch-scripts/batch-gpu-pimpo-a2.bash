@@ -44,7 +44,7 @@ do
       do
         for lang in $languages_lst
         do
-          python analysis-trans-run-a2.py --languages $lang --method $method --hypothesis $hypothesis --vectorizer $vectorizer --task $task --model_size $model_size \
+          python analysis-transf-run-a2.py --languages $lang --method $method --hypothesis $hypothesis --vectorizer $vectorizer --task $task --model_size $model_size \
                                    --max_sample_lang $max_sample_lang --study_date $study_date --nmt_model $nmt_model --max_epochs $max_epochs \
                                    --max_length $max_length  &> ./results/pimpo/logs/logs-$method-$model_size-$hypothesis-$vectorizer-$max_sample_lang-$task-$lang-$study_date.txt
           echo Run done for scenario: $method $vectorizer $task $lang
