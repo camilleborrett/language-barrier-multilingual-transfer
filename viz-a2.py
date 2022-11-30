@@ -29,8 +29,6 @@ MODEL_SIZE = "large"  #["base", "large"]
 NORMALIZE = True
 EXCLUDE_NO_TOPIC = True
 
-# !! add AGR parfam again - still has some bug
-
 #df_cl = load_data(languages=LANGUAGES, task=TASK, method=METHOD, model_size=MODEL_SIZE, hypothesis=HYPOTHESIS, vectorizer=VECTORIZER, max_sample_lang=MAX_SAMPLE_LANG, date=DATE)
 #df_viz_pred_counts = calculate_distribution(df_func=df_cl, df_label_col="label_text_pred", exclude_no_topic=EXCLUDE_NO_TOPIC, normalize=NORMALIZE, meta_data=META_DATA)
 #df_viz_true_counts = calculate_distribution(df_func=df_cl, df_label_col="label_text", exclude_no_topic=EXCLUDE_NO_TOPIC, normalize=NORMALIZE, meta_data=META_DATA)
@@ -45,7 +43,7 @@ metrics_dic = compute_metrics_standard(label_gold=df_cl.label, label_pred=df_cl.
 
 
 ##### visualisations
-def create_figure(df_func=None, df_counts_func=None, label_count_col="label_count_pred"):
+def create_figure(df_func=None, df_counts_func=None, label_count_col="label_count_pred", show_legend=True):
     x_axis = []
     #data_dic = {label: [] for label in df_func.label_text.unique()}
     data_dic = {label: [] for label in df_counts_func.label_text.unique()}
@@ -55,13 +53,16 @@ def create_figure(df_func=None, df_counts_func=None, label_count_col="label_coun
         for key_label_text in data_dic:
             data_dic[key_label_text].append(group_df_viz[group_df_viz["label_text"] == key_label_text][label_count_col].iloc[0])
 
-    fig = go.Figure()
-    for key_label_text in data_dic:
-        fig.add_bar(x=x_axis, y=data_dic[key_label_text], name=key_label_text)
+    # order of labels
+    label_order = ["immigration_sceptical", "immigration_neutral", "immigration_supportive"]
+    data_dic = {k: data_dic[k] for k in label_order}
 
-    #if df_label_col == "label_text_pred":
-    #    fig.update_layout(barmode="relative", title=f"Predicted - trained on: {language_str} - Method: {METHOD}-{VECTORIZER}")
-    #else:
+    fig = go.Figure()
+    colors_dic = {"immigration_neutral": "#3F65C5", "immigration_sceptical": "#E63839", "immigration_supportive": "#1f9134"}  # order: neutral, sceptical,  supportive
+    for key_label_text in data_dic:
+        fig.add_bar(x=x_axis, y=data_dic[key_label_text], name=key_label_text, marker_color=colors_dic[key_label_text],
+                    showlegend=show_legend)
+
     fig.update_layout(barmode="relative", title=f"True")
 
     return fig
@@ -69,22 +70,22 @@ def create_figure(df_func=None, df_counts_func=None, label_count_col="label_coun
 
 language_str = "_".join(LANGUAGES)
 
-fig_pred = create_figure(df_func=df_cl, df_counts_func=df_merge, label_count_col="label_count_pred")  # df_label_col="label_text_pred"
-fig_true = create_figure(df_func=df_cl, df_counts_func=df_merge, label_count_col="label_count_true")  # df_label_col="label_text"
+fig_pred = create_figure(df_func=df_cl, df_counts_func=df_merge, label_count_col="label_count_pred", show_legend=False)  # df_label_col="label_text_pred"
+fig_true = create_figure(df_func=df_cl, df_counts_func=df_merge, label_count_col="label_count_true", show_legend=True)  # df_label_col="label_text"
 fig_pred.update_layout(barmode="relative", title=f"Predicted - trained on: {language_str} - Method: {METHOD}-{VECTORIZER}")
 
 ## try making subplots
 from plotly.subplots import make_subplots  # https://plotly.com/python/subplots/
 
-subplot_titles = ["Ground truth from crowd workers", f"Predicted - trained on: {language_str} - Method: {METHOD}-{VECTORIZER}"]
+subplot_titles = ["Ground truth from PImPo dataset", f"Prediction by BERT-NLI"]
 fig_subplot = make_subplots(rows=1, cols=2,  # start_cell="top-left", horizontal_spacing=0.1, vertical_spacing=0.2,
                             subplot_titles=subplot_titles,
-                            x_title=META_DATA, y_title="Proportion of stances")
+                            x_title="Party families" , y_title="Proportion of stances towards immigration in corpus")
 
 fig_subplot.add_traces(fig_true["data"], rows=1, cols=1)
 fig_subplot.add_traces(fig_pred["data"], rows=1, cols=2)
-fig_subplot.update_layout(barmode="relative", title=f"Comparison of true and predicted data distribution for stance towards {TASK} with method: {METHOD}-{VECTORIZER}",
-                          title_x=0.5)
+fig_subplot.update_layout(barmode="relative", title=f"Comparison of true and predicted distribution of stances towards {TASK} by party family",
+                          title_x=0.5, legend={'traceorder': 'reversed'}, template="ggplot2")
 fig_subplot.show(renderer="browser")
 
 
