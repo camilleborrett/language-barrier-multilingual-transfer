@@ -7,11 +7,17 @@ import sys
 else:
     EXECUTION_TERMINAL = False
 print("Terminal execution: ", EXECUTION_TERMINAL, "  (sys.stdin.isatty(): ", sys.stdin.isatty(), ")")"""
-if len(sys.argv) > 1:
+"""if len(sys.argv) > 1:
     EXECUTION_TERMINAL = True
 else:
     EXECUTION_TERMINAL = False
-print("Terminal execution: ", EXECUTION_TERMINAL, "  (len(sys.argv): ", len(sys.argv), ")")
+print("Terminal execution: ", EXECUTION_TERMINAL, "  (len(sys.argv): ", len(sys.argv), ")")"""
+import sys
+if sys.argv[0] != '/Applications/PyCharm.app/Contents/plugins/python/helpers/pydev/pydevconsole.py':
+    EXECUTION_TERMINAL = True
+else:
+    EXECUTION_TERMINAL = False
+print("Terminal execution: ", EXECUTION_TERMINAL, "  (sys.argv[0]: ", sys.argv[0], ")")
 
 
 # ! had protobuf==4.21.3, downgraded to pip install protobuf==3.20.* to avoid error when running minilm https://stackoverflow.com/questions/72441758/typeerror-descriptors-cannot-not-be-created-directly
@@ -95,7 +101,7 @@ parser.add_argument('-nmt', '--nmt_model', type=str,
 parser.add_argument('-max_e', '--max_epochs', type=int, #nargs='+',
                     help='number of epochs')
 parser.add_argument('-max_len', '--max_length', type=int, #nargs='+',
-                    help='number of epochs')
+                    help='max token length')
 
 ### choose arguments depending on execution in terminal or in script for testing
 if EXECUTION_TERMINAL == True:
@@ -111,16 +117,17 @@ if EXECUTION_TERMINAL == True:
 elif EXECUTION_TERMINAL == False:
   # parse args if not in terminal, but in script. adapt manually
   args = parser.parse_args(["--n_cross_val_final", "2",  #--zeroshot
-                            "--dataset", "manifesto-8",
-                            "--languages", "en", "de", "es", "fr", "tr", "ru", "ko",
+                            "--dataset", "pimpo_samp_a1",  # pimpo_samp_a1, manifesto-8
+                            "--languages", "en", #"de", "es", "fr", "tr", "ru", "ko",
                             "--language_anchor", "en", "--language_train", "en",  # in multiling scenario --language_train is not used
                             "--augmentation_nmt", "one2anchor",  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
                             "--sample_interval", "30",  #"100", "500", "1000", #"2500", "5000", #"10000",
-                            "--method", "standard_dl", "--model", "microsoft/MiniLM-L12-H384-uncased",  # "microsoft/Multilingual-MiniLM-L12-H384", "microsoft/MiniLM-L12-H384-uncased"
+                            "--method", "standard_dl", "--model", "transformer",  # "microsoft/Multilingual-MiniLM-L12-H384", "microsoft/MiniLM-L12-H384-uncased"
                             "--vectorizer", "embeddings-en",  # "tfidf", "embeddings-en", "embeddings-multi"
-                            "--nmt_model", "m2m_100_1.2B",  # "m2m_100_1.2B", "m2m_100_418M"
-                            "--hyperparam_study_date", "20221026"
-                            "--max_epochs", "2", "max_length", "160"])
+                            "--nmt_model", "m2m_100_418M",  # "m2m_100_1.2B", "m2m_100_418M"
+                            "--hyperparam_study_date", "20221026",
+                            "--max_epochs", "2", "--max_length", "160"
+                            ])
 
 
 
@@ -174,7 +181,7 @@ if "manifesto-8" in DATASET:
   df_cl = pd.read_csv("./data-clean/df_manifesto_all.zip")
   df_train = pd.read_csv(f"./data-clean/df_{DATASET}_samp_train_trans_{NMT_MODEL}_embed_tfidf.zip")
   df_test = pd.read_csv(f"./data-clean/df_{DATASET}_samp_test_trans_{NMT_MODEL}_embed_tfidf.zip")
-if "pimpo_samp_a1" in DATASET:
+elif "pimpo_samp_a1" in DATASET:
   df_cl = pd.read_csv("./data-clean/df_pimpo_all.zip")
   df_train = pd.read_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}_embed_tfidf.zip")
   df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}_embed_tfidf.zip")

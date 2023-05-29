@@ -7,12 +7,17 @@ import sys
 else:
     EXECUTION_TERMINAL = False
 print("Terminal execution: ", EXECUTION_TERMINAL, "  (sys.stdin.isatty(): ", sys.stdin.isatty(), ")")"""
-if len(sys.argv) > 1:
+"""if len(sys.argv) > 1:
     EXECUTION_TERMINAL = True
 else:
     EXECUTION_TERMINAL = False
-print("Terminal execution: ", EXECUTION_TERMINAL, "  (len(sys.argv): ", len(sys.argv), ")")
-
+print("Terminal execution: ", EXECUTION_TERMINAL, "  (len(sys.argv): ", len(sys.argv), ")")"""
+import sys
+if sys.argv[0] != '/Applications/PyCharm.app/Contents/plugins/python/helpers/pydev/pydevconsole.py':
+    EXECUTION_TERMINAL = True
+else:
+    EXECUTION_TERMINAL = False
+print("Terminal execution: ", EXECUTION_TERMINAL, "  (sys.argv[0]: ", sys.argv[0], ")")
 
 # ## Load packages
 import transformers
@@ -153,7 +158,7 @@ if "manifesto-8" in DATASET:
   df_cl = pd.read_csv("./data-clean/df_manifesto_all.zip")
   df_train = pd.read_csv(f"./data-clean/df_{DATASET}_samp_train_trans_{NMT_MODEL}_embed_tfidf.zip")
   df_test = pd.read_csv(f"./data-clean/df_{DATASET}_samp_test_trans_{NMT_MODEL}_embed_tfidf.zip")
-if "pimpo_samp_a1" in DATASET:
+elif "pimpo_samp_a1" in DATASET:
   df_cl = pd.read_csv("./data-clean/df_pimpo_all.zip")
   df_train = pd.read_csv(f"./data-clean/df_{DATASET}_train_trans_{NMT_MODEL}_embed_tfidf.zip")
   df_test = pd.read_csv(f"./data-clean/df_{DATASET}_test_trans_{NMT_MODEL}_embed_tfidf.zip")
