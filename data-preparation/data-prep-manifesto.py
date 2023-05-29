@@ -27,7 +27,12 @@ print(os.getcwd())
 # switch was 2016/2017
 # ! adapt this downstream
 
-df = pd.read_csv("./data-raw/manifesto_all_2021a.csv", index_col="idx")
+#df = pd.read_csv("./data-raw/manifesto_all_2021a.csv", index_col="idx")
+# write raw large .csv file to zip
+#dataset_name = "manifesto_all_2021a"
+#df.to_csv(f'./data-raw/{dataset_name}.zip', compression={"method": "zip", "archive_name": f"{dataset_name}.csv"})  # index=False
+
+df = pd.read_csv("./data-raw/manifesto_all_2021a.zip", index_col="idx")
 print(df.columns)
 print(len(df))
 
@@ -35,8 +40,8 @@ df_cl = df.copy(deep=True)
 
 
 #### explore languages
-print(df_cl.language_iso.value_counts())
-print(df_cl.language_iso.unique())
+print(df_cl.country_name.value_counts())
+print(df_cl.language.unique())
 print(len(df_cl.language_iso.unique()))
 
 

@@ -18,14 +18,14 @@ from helpers_a2 import load_data, calculate_distribution, compute_correlation, c
 ### create overview df
 
 LANGUAGES = ["en", "de"]  # [["en"], ["en", "de"], ["en", "de", "sv", "fr"]]
-DATE = "221111"
+DATE = "221111"  # 221111, 230127
 TASK = "immigration"  # "immigration", "integration
-METHOD = "nli"  # standard_dl nli
-VECTORIZER = "en" # ["en", "multi"]
+METHOD = "nli"  # standard_dl nli classical_ml
+VECTORIZER = "en" # ["en", "multi"] tfidf
 HYPOTHESIS = "long"
 MAX_SAMPLE_LANG = "500"
 META_DATA = "parfam_text"  #["parfam_text", "country_iso", "language_iso", "decade"]
-MODEL_SIZE = "large"  #["base", "large"]
+MODEL_SIZE = "large"  #["base", "large", "classical"]
 NORMALIZE = True
 EXCLUDE_NO_TOPIC = True
 
