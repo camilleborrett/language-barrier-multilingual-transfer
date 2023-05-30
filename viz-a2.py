@@ -84,7 +84,7 @@ fig_subplot = make_subplots(rows=1, cols=2,  # start_cell="top-left", horizontal
 
 fig_subplot.add_traces(fig_true["data"], rows=1, cols=1)
 fig_subplot.add_traces(fig_pred["data"], rows=1, cols=2)
-fig_subplot.update_layout(barmode="relative", title=f"Comparison of true and predicted distribution of stances towards {TASK} by party family",
+fig_subplot.update_layout(barmode="relative", #title=f"Comparison of true and predicted distribution of stances towards {TASK} by party family",
                           title_x=0.5, legend={'traceorder': 'reversed'}, template="ggplot2")
 fig_subplot.show(renderer="browser")
 
