@@ -80,12 +80,25 @@ from plotly.subplots import make_subplots  # https://plotly.com/python/subplots/
 subplot_titles = ["Ground truth from PImPo dataset", f"Prediction by BERT-NLI"]
 fig_subplot = make_subplots(rows=1, cols=2,  # start_cell="top-left", horizontal_spacing=0.1, vertical_spacing=0.2,
                             subplot_titles=subplot_titles,
-                            x_title="Party families" , y_title="Proportion of stances towards immigration in corpus")
+                            x_title="Party families<br><br>" , y_title="Proportion of stances towards immigration in corpus<br><br>")
 
 fig_subplot.add_traces(fig_true["data"], rows=1, cols=1)
 fig_subplot.add_traces(fig_pred["data"], rows=1, cols=2)
-fig_subplot.update_layout(barmode="relative", #title=f"Comparison of true and predicted distribution of stances towards {TASK} by party family",
-                          title_x=0.5, legend={'traceorder': 'reversed'}, template="ggplot2")
+fig_subplot.update_layout(
+    barmode="relative", #title=f"Comparison of true and predicted distribution of stances towards {TASK} by party family",
+    title_x=0.5, legend={'traceorder': 'reversed'}, template="ggplot2",
+    font=dict(size=20),
+    title=dict(font=dict(size=20)),
+    xaxis=dict(title=dict(font=dict(size=18))),
+    yaxis=dict(titlefont=dict(size=18), tickfont=dict(size=18)),
+    yaxis2=dict(titlefont=dict(size=18), tickfont=dict(size=18)),
+    legend_title=dict(font=dict(size=20))
+)
+
+# Update the subplot titles font size
+for i, annotation in enumerate(fig_subplot.layout.annotations):
+    annotation.font.size = 22
+
 fig_subplot.show(renderer="browser")
 
 
