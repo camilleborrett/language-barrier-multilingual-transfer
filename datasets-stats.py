@@ -20,5 +20,6 @@ df_pimpo_nli_en_train = df_pimpo_nli_en[df_pimpo_nli_en.label_text_pred.isna()]
 df_pimpo_nli_en_de_train = df_pimpo_nli_en_de[df_pimpo_nli_en_de.label_text_pred.isna()]
 
 
-
+df_pimpo[df_pimpo.language_iso == "en"].label_text.value_counts()
+df_pimpo[df_pimpo.language_iso == "en"].country_iso.value_counts()
 
