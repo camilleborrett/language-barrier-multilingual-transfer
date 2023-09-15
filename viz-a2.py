@@ -58,7 +58,7 @@ def create_figure(df_func=None, df_counts_func=None, label_count_col="label_coun
     data_dic = {k: data_dic[k] for k in label_order}
 
     fig = go.Figure()
-    colors_dic = {"immigration_neutral": "#3F65C5", "immigration_sceptical": "#E63839", "immigration_supportive": "#1f9134"}  # order: neutral, sceptical,  supportive
+    colors_dic = {"immigration_neutral": "#BFE1B0", "immigration_sceptical": "#137177", "immigration_supportive": "#39A96B"}  # order: neutral, sceptical,  supportive
     for key_label_text in data_dic:
         fig.add_bar(x=x_axis, y=data_dic[key_label_text], name=key_label_text, marker_color=colors_dic[key_label_text],
                     showlegend=show_legend)
