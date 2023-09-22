@@ -1,5 +1,4 @@
 
-
 import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
@@ -8,13 +7,12 @@ from scipy.stats import pearsonr
 from sklearn.metrics import balanced_accuracy_score, precision_recall_fscore_support, accuracy_score, classification_report
 import numpy as np
 
-# ## Load helper functions
+# Load helper functions
 import sys
 sys.path.insert(0, os.getcwd())
 import helpers_a2
 import importlib  # in case of manual updates in .py file
 importlib.reload(helpers_a2)
-
 from helpers_a2 import load_data, calculate_distribution, compute_correlation, compute_metrics_standard
 
 
@@ -159,8 +157,6 @@ df_results.to_excel("./results/viz-a2/df_results_pimpo.xlsx")
 df_results_corr.to_excel("./results/viz-a2/df_results_pimpo_corr.xlsx")
 
 print("Run Done.")
-
-
 
 
 ## test analysis of standard metric performance disaggregated by meta data

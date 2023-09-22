@@ -1,5 +1,4 @@
 
-## seems like I need to import all libraries here too even though the entire script is never run
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoConfig, AutoModelForNextSentencePrediction
@@ -233,40 +232,6 @@ def sample_for_scenario_hp(df_train_scenario=None, df_test_scenario=None, n_samp
     return df_train_scenario_samp, df_test_scenario_samp
 
 
-## function unnecessary, because augmentation only happens afterwards. and function not tested properly, probably mistakes
-"""def sample_for_scenario_final(df_train_scenario=None, n_sample=None, augmentation=None, vectorizer=None, seed=None, lang=None, dataset=None):
-    if "manifesto" in dataset:
-        unique_sentence_id = "sentence_id"
-    elif "pimpo" in dataset:
-        unique_sentence_id = "rn"
-        # also pre-sample for pimpo given high data imbalance. Taking sample of equal size for topics and no-topic
-        # sampling on sentence_ids in case sentence was augmented in some scenarios
-        n_no_topic_or_topic = int(n_sample / 2)
-        df_train_scenario_samp_ids = df_train_scenario.groupby(by="language_iso", as_index=True, group_keys=True).apply(
-            lambda x: pd.concat([x[x.label_text == "no_topic"].sample(n=min(n_no_topic_or_topic, len(x[x.label_text != "no_topic"])), random_state=seed)[unique_sentence_id],
-                                 x[x.label_text != "no_topic"].sample(n=min(n_no_topic_or_topic, len(x[x.label_text != "no_topic"])), random_state=seed)[unique_sentence_id]
-                                 ])).squeeze
-        df_train_scenario = df_train_scenario[df_train_scenario[unique_sentence_id].isin(df_train_scenario_samp_ids)]
-
-    if n_sample == 999_999:
-        df_train_scenario_samp = df_train_scenario.copy(deep=True)
-    elif augmentation in ["no-nmt-single", "one2anchor", "one2many"]:
-        df_train_scenario_samp_ids = df_train_scenario[unique_sentence_id].sample(n=min(n_sample, len(df_train_scenario)), random_state=seed).copy(deep=True)
-        df_train_scenario_samp = df_train_scenario[df_train_scenario[unique_sentence_id].isin(df_train_scenario_samp_ids)]
-    elif augmentation in ["no-nmt-many", "many2anchor", "many2many"]:
-        df_train_scenario_samp_ids = df_train_scenario.groupby(by="language_iso", group_keys=True, as_index=True).apply(lambda x: x[unique_sentence_id].sample(n=min(n_sample, len(x)), random_state=seed))
-        if augmentation in ["no-nmt-many"] and vectorizer in ["tfidf", "embeddings-en"]:
-            # unelegant - need to extract row with ids from df - when only run on one language, groupby returns df with separate rows for each lang  (only one lang), but need just one series with all ids
-            df_train_scenario_samp_ids = df_train_scenario_samp_ids.loc[lang]
-        #elif augmentation in ["many2many"] and vectorizer in ["tfidf", "embeddings-en"]:
-            # unelegant - need to extract row with ids from df - when only run on one language, groupby returns df with separate rows for each lang  (only one lang), but need just one series with all ids
-        df_train_scenario_samp = df_train_scenario[df_train_scenario[unique_sentence_id].isin(df_train_scenario_samp_ids)]
-    else:
-        raise Exception(f"No implementation/issue scenario")
-
-    return df_train_scenario_samp
-"""
-
 def choose_preprocessed_text(df_train_scenario_samp_augment=None, df_test_scenario=None, augmentation=None, vectorizer=None, vectorizer_sklearn=None, language_train=None, language_anchor=None, method=None):
     if method == "classical_ml":
         if vectorizer == "tfidf":
@@ -320,8 +285,6 @@ def choose_preprocessed_text(df_train_scenario_samp_augment=None, df_test_scenar
             df_train_scenario_samp_augment["text_prepared"] = 'The quote: "' + df_train_scenario_samp_augment.text_original_trans + '"'
             df_test_scenario["text_prepared"] = 'The quote: "' + df_test_scenario.text_original_trans + '"'
         return df_train_scenario_samp_augment, df_test_scenario
-
-
 
 
 ### reformat training data for NLI binary classification
@@ -431,7 +394,6 @@ def load_model_tokenizer(model_name=None, method=None, label_text_alphabetical=N
     model.to(device);
 
     return model, tokenizer
-
 
 
 
@@ -723,35 +685,3 @@ def aug_back_translation(df=None, languages=None, n_texts_per_class_agument=None
   df_aug = df_aug[["label_d_text", "label_subcat_text", "text", "text_original", "label", "label_d", "label_subcat", "label_text", "hypothesis", "lang_augment", "text_trans"]]
 
   return df_aug"""
-
-#df_train_samp_aug = aug_back_translation(df=df_train_samp, languages=LANGUAGES_AUGMENT, n_texts_per_class_agument=N_TEXTS_PER_CLASS_AUGMENT)
-#df_train_samp_aug.label_text.value_counts()
-
-
-
-
-### random sample, filling up at least 3 per class
-"""def random_sample_fill(df_train=None, n_sample_per_class=None, random_seed=42, df=None):
-  df_sample_random = df_train.sample(n=min(n_sample_per_class*len(df_train.label_text.unique()), len(df_train)), random_state=random_seed)
-  if len(df_sample_random) == 0:  # for zero-shot
-    print("Number of training examples after sampling: ", len(df_sample_random))
-    print(f"n_sample_per_class is {n_sample_per_class} and n_classes is {len(df_train.label_text.unique())}")
-    return df_sample_random.copy(deep=True) 
-
-  ## fill up to have at least 3 per class
-  n_min_per_class = 3
-  if sum(df_sample_random.label_text.value_counts() >= n_min_per_class) != len(df.label_text.unique()):
-    labels_count_insufficient_sample = df_sample_random.label_text.value_counts().where(lambda x: x < n_min_per_class).dropna()  # returns series with label_names and number of hits for predicted labels with less than 16 or n_sample_per_class hits
-    # add labels and counts which don't appear a single time in first df_sample_random
-    label_missing = [label for label in df.label_text.unique() if label not in df_sample_random.label_text.unique()]
-    label_missing = pd.Series([0] * len(label_missing), index=label_missing)
-    labels_count_insufficient_sample = labels_count_insufficient_sample.append(label_missing)
-    #print(f"For these label(s) {labels_count_insufficient_sample}, < 3 gold texts were sampled. Filling them up to 3 samples.")
-    for index_label, value in labels_count_insufficient_sample.iteritems():
-      df_sample_fill = df_train[df_train.label_text == index_label].sample(n=n_min_per_class-int(value), random_state=random_seed)
-      df_sample_random = pd.concat([df_sample_random, df_sample_fill])
-  print("Number of training examples after sampling: ", len(df_sample_random), " . (but before cross-validation split) ")
-  print(f"The number should be: n_sample_per_class ({n_sample_per_class}) * n_classes ({len(df_train.label_text.unique())}) = {n_sample_per_class*len(df_train.label_text.unique())} (plus at most a few examples to fill up low n classes)")
-
-  return df_sample_random.copy(deep=True)
-"""

@@ -1,5 +1,4 @@
 
-
 # Create the argparse to pass arguments via terminal
 import argparse
 parser = argparse.ArgumentParser(description='Pass arguments via terminal')
@@ -58,7 +57,6 @@ MT_MODEL = args.nmt_model
 #MODEL_MAX_LENGTH = args.max_length
 MODEL_SIZE = args.model_size
 
-# !! align in all scripts
 SAMPLE_NO_TOPIC = 50_000  #100_000
 #SAMPLE_DF_TEST = 1_000
 
@@ -85,12 +83,10 @@ import numpy as np
 import os
 import torch
 import datasets
-
-
 from transformers import AutoTokenizer, AutoConfig, AutoModelForSequenceClassification
 from transformers import TrainingArguments
 
-# ## Load helper functions
+## Load helper functions
 import sys
 sys.path.insert(0, os.getcwd())
 import helpers

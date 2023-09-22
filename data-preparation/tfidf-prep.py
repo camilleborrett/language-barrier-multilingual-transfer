@@ -124,8 +124,6 @@ print("Script done.")
 
 
 
-
-
 ## test default sklearn tokenizer for Korean
 # https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html
 """import re

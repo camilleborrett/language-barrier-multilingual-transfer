@@ -1,11 +1,4 @@
-
-
-# !!! Remove API key before publication !!!
-
-
 # API documentation: https://manifesto-project.wzb.eu/information/documents/api
-# my api key: f4aca6cabddc5170b7aaf41f8119af45
-
 import pandas as pd
 import requests
 import re
@@ -13,20 +6,20 @@ import time
 import os
 
 ### Parameters
-api_key = "f4aca6cabddc5170b7aaf41f8119af45"
+api_key = "XXX"
 corp_v = "MPDS2021a"  #"MPDS2020a"
 meta_v = "2021-1"   #"2020-1"
 
 ## check latest corpus and meta data versions
 # api_list_core_versions
-url = "https://manifesto-project.wzb.eu/tools/api_list_core_versions.json"  # ?api_key=f4aca6cabddc5170b7aaf41f8119af45
+url = "https://manifesto-project.wzb.eu/tools/api_list_core_versions.json"
 params = dict(api_key=api_key)
 response = requests.get(url=url, params=params)
 data_core_versions = response.json()
 # latest: {'id': 'MPDS2021a', 'name': 'Manifesto Project Dataset (version 2021a)'}
 
 # api_list_metadata_versions
-url = "https://manifesto-project.wzb.eu/tools/api_list_metadata_versions.json"  # ?api_key=f4aca6cabddc5170b7aaf41f8119af45
+url = "https://manifesto-project.wzb.eu/tools/api_list_metadata_versions.json"
 params = dict(api_key=api_key, tag="true", details="true")
 response = requests.get(url=url, params=params)
 data_meta_versions = response.json()
@@ -34,9 +27,8 @@ data_meta_versions = response.json()
 
 
 
-
 ##### 1. Get core dataset - one manifesto per row - aggregated values, no sentences
-url = "https://manifesto-project.wzb.eu/tools/api_get_core.json"  # ?api_key=f4aca6cabddc5170b7aaf41f8119af45
+url = "https://manifesto-project.wzb.eu/tools/api_get_core.json"
 params = dict(api_key=api_key, key=corp_v)
 response = requests.get(url=url, params=params)
 data_core = response.json()  # JSON Response Content documentation: https://requests.readthedocs.io/en/master/user/quickstart/#json-response-content
@@ -58,7 +50,7 @@ manifesto_keys_chunks = chunk_lst(manifesto_keys, 250)
 
 ## get meta data
 def get_metadata(manifesto_keys, api_key, meta_v):
-    url = "https://manifesto-project.wzb.eu/tools/api_metadata.json"  #?api_key=f4aca6cabddc5170b7aaf41f8119af45&keys=41320_200909&version=MPDS2020a"
+    url = "https://manifesto-project.wzb.eu/tools/api_metadata.json"
     params = {"api_key": api_key, "keys[]": manifesto_keys, "version": meta_v}   # "keys[]": ("41320_200909", "41320_200509"),
     response = requests.get(url=url, params=params)
     data_manif_meta = response.json()
@@ -87,7 +79,7 @@ df_manif_meta_cl.language.value_counts()
 
 ## download
 def get_texts(manifesto_ids, api_key, meta_v):
-    url = "https://manifesto-project.wzb.eu/tools/api_texts_and_annotations.json"  # ?api_key=f4aca6cabddc5170b7aaf41f8119af45
+    url = "https://manifesto-project.wzb.eu/tools/api_texts_and_annotations.json"
     params = {"api_key": api_key, "keys[]": manifesto_ids, "version": meta_v}  # "keys[]": "41320_200909",
     response = requests.get(url=url, params=params)
     data_text = response.json()
@@ -135,7 +127,7 @@ df_text = pd.concat(df_text_dic)
 
 #### get codebook df with variables/codes
 # api_get_core_codebook
-url = "https://manifesto-project.wzb.eu/tools/api_get_core_codebook.json"  # ?api_key=f4aca6cabddc5170b7aaf41f8119af45
+url = "https://manifesto-project.wzb.eu/tools/api_get_core_codebook.json"
 params = dict(api_key=api_key, key=corp_v)  # MPDS2020a
 response = requests.get(url=url, params=params)
 data_codebook = response.json()
@@ -232,11 +224,6 @@ df_text_meta_cl.to_csv("data-raw/manifesto_all_2021a.csv", index=True, index_lab
 
 
 
-
-
-
-
-
 ### read disk
 
 # load textual datasets from disk
@@ -244,12 +231,12 @@ df_text_meta_cl.to_csv("data-raw/manifesto_all_2021a.csv", index=True, index_lab
 
 ### citation data
 ## api_get_core_citation
-"""url = "https://manifesto-project.wzb.eu/tools/api_get_core_citation.json"  # ?api_key=f4aca6cabddc5170b7aaf41f8119af45
+"""url = "https://manifesto-project.wzb.eu/tools/api_get_core_citation.json" 
 params = dict(api_key=api_key, key=corp_v)
 response = requests.get(url=url, params=params)
 data_citation_core = response.json()
 ## api_get_corpus_citation
-url = "https://manifesto-project.wzb.eu/tools/api_get_corpus_citation.json"  # ?api_key=f4aca6cabddc5170b7aaf41f8119af45
+url = "https://manifesto-project.wzb.eu/tools/api_get_corpus_citation.json" 
 params = dict(api_key=api_key, key=meta_v)
 response = requests.get(url=url, params=params)
 data_citation_corpus = response.json()"""

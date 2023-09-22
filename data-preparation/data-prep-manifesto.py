@@ -1,10 +1,4 @@
 
-
-# !!! delete API-key before publication !!!
-
-
-# ## Install and load packages
-
 import pandas as pd
 import numpy as np
 import os
@@ -13,19 +7,16 @@ SEED_GLOBAL = 42
 np.random.seed(SEED_GLOBAL)
 
 
-# ## Load & prepare data
-
+## Load & prepare data
 print(os.getcwd())
 #os.chdir("./")
 print(os.getcwd())
-
 
 ## load dfs
 # correct v5 codebook: https://manifesto-project.wzb.eu/down/papers/handbook_2021_version_5.pdf - the PDF on the following website is wrong, but html is correct: https://manifesto-project.wzb.eu/coding_schemes/mp_v5
 # we are working with v4 for backwards compatibility https://manifesto-project.wzb.eu/down/papers/handbook_2011_version_4.pdf
 # overview of changes from v4 to v5: https://manifesto-project.wzb.eu/down/papers/Evolution_of_the_Manifesto_Coding_Instructions_and_the_Category_Scheme.pdf
 # switch was 2016/2017
-# ! adapt this downstream
 
 #df = pd.read_csv("./data-raw/manifesto_all_2021a.csv", index_col="idx")
 # write raw large .csv file to zip
@@ -83,11 +74,11 @@ print(len(df_cl))
 
 #### adapt variables to harmonised codebook version (v4 for backwards compatibility)
 """import requests
-api_key = "f4aca6cabddc5170b7aaf41f8119af45"
+api_key = "XXX"
 corp_v = "MPDS2021a"  #"MPDS2020a"
 meta_v = "2021-1"   #"2020-1"
 # api_get_core_codebook
-url = "https://manifesto-project.wzb.eu/tools/api_get_core_codebook.json"  # ?api_key=f4aca6cabddc5170b7aaf41f8119af45
+url = "https://manifesto-project.wzb.eu/tools/api_get_core_codebook.json"  
 params = dict(api_key=api_key, key=corp_v)  # MPDS2020a
 response = requests.get(url=url, params=params)
 data_codebook = response.json()
@@ -135,8 +126,6 @@ print(len(df_cl.label_domain_text.value_counts()))
 assert len(df_cl.cmp_code_v4.value_counts()) == 57
 assert len(df_cl.label_subcat_text.value_counts()) == 57
 assert len(df_cl.label_domain_text.value_counts()) == 8
-
-
 
 
 ## decide on label level to use for downstream analysis
@@ -292,218 +281,5 @@ df_test_morality.to_csv("./data-clean/df_manifesto_morality_test.csv")
 """
 
 
-
-
-
-
-
-
-#### old code
-
-## sample based on docs - to make test set composed of entirely different docs - avoid data leakage when including surrounding sentences
-# not used because: causes downstream issues for very small languages
-#df_cl.groupby(by="language_iso").apply(lambda x: len(x.label_domain_text))
-"""doc_id_train = pd.Series(df_cl.doc_id.unique()).sample(frac=0.70, random_state=SEED_GLOBAL).tolist()
-doc_id_test = df_cl[~df_cl.doc_id.isin(doc_id_train)].doc_id.unique().tolist()
-print(len(doc_id_train))
-print(len(doc_id_test))
-assert sum([doc_id in doc_id_train for doc_id in doc_id_test]) == 0, "should be 0 if doc_id_train and doc_id_test don't overlap"
-df_train = df_cl[df_cl.doc_id.isin(doc_id_train)]
-df_test = df_cl[~df_cl.doc_id.isin(doc_id_train)]"""
-
-
-# ### Small complex tasks
-"""
-### Military positive vs. negative
-
-df_cl_military = df_cl.copy(deep=True)
-
-label_text_military = [label if label in ["Military: Positive", "Military: Negative"] else "Other" for label in df_cl_military.label_subcat_text]
-
-df_cl_military["label_text"] = label_text_military
-df_cl_military["label"] = pd.factorize(df_cl_military["label_text"], sort=True)[0]
-
-## train test split
-# simple split
-#df_train_military, df_test_military = train_test_split(df_cl_military, test_size=0.25, random_state=SEED_GLOBAL, stratify=df_cl_military["label_text"])
-# better train test split to avoid data leakage
-doc_id_train_military = pd.Series(df_cl_military.doc_id.unique()).sample(frac=0.70, random_state=SEED_GLOBAL).tolist()
-doc_id_test_military = df_cl_military[~df_cl_military.doc_id.isin(doc_id_train_military)].doc_id.unique().tolist()
-print(len(doc_id_train_military))
-print(len(doc_id_test_military))
-assert sum([doc_id in doc_id_train_military for doc_id in doc_id_test_military]) == 0, "should be 0 if doc_id_train and doc_id_test don't overlap"
-df_train_military = df_cl_military[df_cl_military.doc_id.isin(doc_id_train_military)]
-df_test_military = df_cl_military[~df_cl_military.doc_id.isin(doc_id_train_military)]
-
-# down sampling the "other" category
-df_train_military = df_train_military.groupby(by="label_text", group_keys=False, as_index=False, sort=False).apply(lambda x: x.sample(n=min(len(x), sum(df_train_military.label_text != "Other")*1), random_state=SEED_GLOBAL))
-df_test_military = df_test_military.groupby(by="label_text", group_keys=False, as_index=False, sort=False).apply(lambda x: x.sample(n=min(len(x), sum(df_test_military.label_text != "Other")*10), random_state=SEED_GLOBAL))
-df_cl_military = pd.concat([df_train_military, df_test_military])
-
-# show data distribution
-print(f"Overall train size: {len(df_train_military)}")
-print(f"Overall test size: {len(df_test_military)}")
-df_train_test_distribution_military = pd.DataFrame([df_train_military.label_text.value_counts().rename("train"), df_test_military.label_text.value_counts().rename("test"),
-                                                   df_cl_military.label_text.value_counts().rename("all")]).transpose()
-df_train_test_distribution_military
-
-## label distribution by language
-df_distribution_lang_military = []
-for key_language, value_df in df_cl_military.groupby(by="language_iso", group_keys=True, as_index=True, sort=False, axis=0):
-    df_distribution_lang_military.append(value_df.label_text.value_counts(normalize=True).round(2).rename(key_language))
-df_distribution_lang_military = pd.concat(df_distribution_lang_military, axis=1)
-
-
-### Protectionism positive vs. negative
-df_cl_protectionism = df_cl.copy(deep=True)
-
-label_text_protectionism = [label if label in ["Protectionism: Positive", "Protectionism: Negative"] else "Other" for label in df_cl_protectionism.label_subcat_text]
-
-df_cl_protectionism["label_text"] = label_text_protectionism
-df_cl_protectionism["label"] = pd.factorize(df_cl_protectionism["label_text"], sort=True)[0]
-
-## train test split
-# simple split
-#df_train_protectionism, df_test_protectionism = train_test_split(df_cl_protectionism, test_size=0.25, random_state=SEED_GLOBAL, stratify=df_cl_protectionism["label_text"])
-# better train test split to avoid data leakage
-doc_id_train_protectionism = pd.Series(df_cl_protectionism.doc_id.unique()).sample(frac=0.70, random_state=SEED_GLOBAL).tolist()
-doc_id_test_protectionism = df_cl_protectionism[~df_cl_protectionism.doc_id.isin(doc_id_train_protectionism)].doc_id.unique().tolist()
-print(len(doc_id_train_protectionism))
-print(len(doc_id_test_protectionism))
-assert sum([doc_id in doc_id_train_protectionism for doc_id in doc_id_test_protectionism]) == 0, "should be 0 if doc_id_train and doc_id_test don't overlap"
-df_train_protectionism = df_cl_protectionism[df_cl_protectionism.doc_id.isin(doc_id_train_protectionism)]
-df_test_protectionism = df_cl_protectionism[~df_cl_protectionism.doc_id.isin(doc_id_train_protectionism)]
-
-# down sampling the "other" category
-df_train_protectionism = df_train_protectionism.groupby(by="label_text", group_keys=False, as_index=False, sort=False).apply(lambda x: x.sample(n=min(len(x), sum(df_train_protectionism.label_text != "Other")*1), random_state=SEED_GLOBAL))
-df_test_protectionism = df_test_protectionism.groupby(by="label_text", group_keys=False, as_index=False, sort=False).apply(lambda x: x.sample(n=min(len(x), sum(df_test_protectionism.label_text != "Other")*10), random_state=SEED_GLOBAL))
-df_cl_protectionism = pd.concat([df_train_protectionism, df_test_protectionism])
-
-# show data distribution
-print(f"Overall train size: {len(df_train_protectionism)}")
-print(f"Overall test size: {len(df_test_protectionism)}")
-df_train_test_distribution_protectionism = pd.DataFrame([df_train_protectionism.label_text.value_counts().rename("train"), df_test_protectionism.label_text.value_counts().rename("test"),
-                                                   df_cl_protectionism.label_text.value_counts().rename("all")]).transpose()
-df_train_test_distribution_protectionism
-
-## label distribution by language
-df_distribution_lang_protectionism = []
-for key_language, value_df in df_cl_protectionism.groupby(by="language_iso", group_keys=True, as_index=True, sort=False, axis=0):
-    df_distribution_lang_protectionism.append(value_df.label_text.value_counts(normalize=True).round(2).rename(key_language))
-df_distribution_lang_protectionism = pd.concat(df_distribution_lang_protectionism, axis=1)
-
-
-### Traditional Morality positive vs. negative
-
-df_cl_morality = df_cl.copy(deep=True)
-
-label_text_morality = [label if label in ["Traditional Morality: Positive", "Traditional Morality: Negative"] else "Other" for label in df_cl_morality.label_subcat_text]
-
-df_cl_morality["label_text"] = label_text_morality
-df_cl_morality["label"] = pd.factorize(df_cl_morality["label_text"], sort=True)[0]
-
-## train test split
-# simple split
-#df_train_morality, df_test_morality = train_test_split(df_cl_morality, test_size=0.25, random_state=SEED_GLOBAL, stratify=df_cl_morality["label_text"])
-# better train test split to avoid data leakage
-doc_id_train_morality = pd.Series(df_cl_morality.doc_id.unique()).sample(frac=0.70, random_state=SEED_GLOBAL).tolist()
-doc_id_test_morality = df_cl_morality[~df_cl_morality.doc_id.isin(doc_id_train_morality)].doc_id.unique().tolist()
-print(len(doc_id_train_morality))
-print(len(doc_id_test_morality))
-assert sum([doc_id in doc_id_train_morality for doc_id in doc_id_test_morality]) == 0, "should be 0 if doc_id_train and doc_id_test don't overlap"
-df_train_morality = df_cl_morality[df_cl_morality.doc_id.isin(doc_id_train_morality)]
-df_test_morality = df_cl_morality[~df_cl_morality.doc_id.isin(doc_id_train_morality)]
-
-# down sampling the "other" category
-df_train_morality = df_train_morality.groupby(by="label_text", group_keys=False, as_index=False, sort=False).apply(lambda x: x.sample(n=min(len(x), sum(df_train_morality.label_text != "Other")*1), random_state=SEED_GLOBAL))
-df_test_morality = df_test_morality.groupby(by="label_text", group_keys=False, as_index=False, sort=False).apply(lambda x: x.sample(n=min(len(x), sum(df_test_morality.label_text != "Other")*10), random_state=SEED_GLOBAL))
-df_cl_morality = pd.concat([df_train_morality, df_test_morality])
-
-# show data distribution
-print(f"Overall train size: {len(df_train_morality)}")
-print(f"Overall test size: {len(df_test_morality)}")
-df_train_test_distribution_morality = pd.DataFrame([df_train_morality.label_text.value_counts().rename("train"), df_test_morality.label_text.value_counts().rename("test"),
-                                                   df_cl_morality.label_text.value_counts().rename("all")]).transpose()
-df_train_test_distribution_morality
-
-## label distribution by language
-df_distribution_lang_morality = []
-for key_language, value_df in df_cl_morality.groupby(by="language_iso", group_keys=True, as_index=True, sort=False, axis=0):
-    df_distribution_lang_morality.append(value_df.label_text.value_counts(normalize=True).round(2).rename(key_language))
-df_distribution_lang_morality = pd.concat(df_distribution_lang_morality, axis=1)
-
-
-### National Way of Life positive vs. negative
-
-df_cl_nationalway = df_cl.copy(deep=True)
-
-label_text_nationalway = [label if label in ["National Way of Life: Positive", "National Way of Life: Negative"] else "Other" for label in df_cl_nationalway.label_subcat_text]
-
-df_cl_nationalway["label_text"] = label_text_nationalway
-df_cl_nationalway["label"] = pd.factorize(df_cl_nationalway["label_text"], sort=True)[0]
-
-## train test split
-# simple split
-#df_train_nationalway, df_test_nationalway = train_test_split(df_cl_nationalway, test_size=0.25, random_state=SEED_GLOBAL, stratify=df_cl_nationalway["label_text"])
-# better train test split to avoid data leakage
-doc_id_train_nationalway = pd.Series(df_cl_nationalway.doc_id.unique()).sample(frac=0.70, random_state=SEED_GLOBAL).tolist()
-doc_id_test_nationalway = df_cl_nationalway[~df_cl_nationalway.doc_id.isin(doc_id_train_nationalway)].doc_id.unique().tolist()
-print(len(doc_id_train_nationalway))
-print(len(doc_id_test_nationalway))
-assert sum([doc_id in doc_id_train_nationalway for doc_id in doc_id_test_nationalway]) == 0, "should be 0 if doc_id_train and doc_id_test don't overlap"
-df_train_nationalway = df_cl_nationalway[df_cl_nationalway.doc_id.isin(doc_id_train_nationalway)]
-df_test_nationalway = df_cl_nationalway[~df_cl_nationalway.doc_id.isin(doc_id_train_nationalway)]
-
-# down sampling the "other" category
-df_train_nationalway = df_train_nationalway.groupby(by="label_text", group_keys=False, as_index=False, sort=False).apply(lambda x: x.sample(n=min(len(x), sum(df_train_nationalway.label_text != "Other")*1), random_state=SEED_GLOBAL))
-df_test_nationalway = df_test_nationalway.groupby(by="label_text", group_keys=False, as_index=False, sort=False).apply(lambda x: x.sample(n=min(len(x), sum(df_test_nationalway.label_text != "Other")*10), random_state=SEED_GLOBAL))
-df_cl_nationalway = pd.concat([df_train_nationalway, df_test_nationalway])
-
-# show data distribution
-print(f"Overall train size: {len(df_train_nationalway)}")
-print(f"Overall test size: {len(df_test_nationalway)}")
-df_train_test_distribution_nationalway = pd.DataFrame([df_train_nationalway.label_text.value_counts().rename("train"), df_test_nationalway.label_text.value_counts().rename("test"),
-                                                       df_cl_nationalway.label_text.value_counts().rename("all")]).transpose()
-df_train_test_distribution_nationalway
-
-## label distribution by language
-df_distribution_lang_nationalway = []
-for key_language, value_df in df_cl_nationalway.groupby(by="language_iso", group_keys=True, as_index=True, sort=False, axis=0):
-    df_distribution_lang_nationalway.append(value_df.label_text.value_counts(normalize=True).round(2).rename(key_language))
-df_distribution_lang_nationalway = pd.concat(df_distribution_lang_nationalway, axis=1)
-
-"""
-
-
-
-
-
-## test how many sentences have same type as preceding / following sentence
-"""test_lst = []
-test_lst2 = []
-test_lst_after = []
-for name_df, group_df in df_cl.groupby(by="doc_id", group_keys=False, as_index=False, sort=False):
-  for i in range(len(group_df)):
-    # one preceding text
-    if i == 0:
-      continue
-    elif group_df["label_text"].iloc[i] == group_df["label_text"].iloc[i-1]:
-      test_lst.append("same_before")
-    else:
-      #test_lst.append(f"different label before: {group_df['label_text'].iloc[i-1]}")
-      test_lst.append(f"different label before")
-    # for following texts
-    if i >= len(group_df)-1:
-      continue
-    elif group_df["label_text"].iloc[i] == group_df["label_text"].iloc[i+1]:
-      test_lst_after.append("same_after")
-    else:
-      #test_lst_after.append(f"different label after: {group_df['label_text'].iloc[i+1]}")
-      test_lst_after.append(f"different label after")
-
-print(pd.Series(test_lst).value_counts(normalize=True), "\n")
-print(pd.Series(test_lst_after).value_counts(normalize=True), "\n")"""
-# SOTU: 75 % of sentences have the same type as the preceeding sentence. also 75% for following sentence. #  concatenating preceding/following leads to data leakage? 25% different class which can confuse the model, its's random and same for all models
-# Manifesto: 57 % of sentences have same type as preceding sentence (57 class). # including preceding sentence should not provide illegitimate advantage to classifier
 
 

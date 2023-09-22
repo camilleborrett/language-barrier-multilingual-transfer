@@ -1,17 +1,4 @@
 
-
-import sys
-# does not work on snellius
-"""if sys.stdin.isatty():
-    EXECUTION_TERMINAL = True
-else:
-    EXECUTION_TERMINAL = False
-print("Terminal execution: ", EXECUTION_TERMINAL, "  (sys.stdin.isatty(): ", sys.stdin.isatty(), ")")"""
-"""if len(sys.argv) > 1:
-    EXECUTION_TERMINAL = True
-else:
-    EXECUTION_TERMINAL = False
-print("Terminal execution: ", EXECUTION_TERMINAL, "  (len(sys.argv): ", len(sys.argv), ")")"""
 import sys
 if sys.argv[0] != '/Applications/PyCharm.app/Contents/plugins/python/helpers/pydev/pydevconsole.py':
     EXECUTION_TERMINAL = True
@@ -19,15 +6,7 @@ else:
     EXECUTION_TERMINAL = False
 print("Terminal execution: ", EXECUTION_TERMINAL, "  (sys.argv[0]: ", sys.argv[0], ")")
 
-
-# ! had protobuf==4.21.3, downgraded to pip install protobuf==3.20.* to avoid error when running minilm https://stackoverflow.com/questions/72441758/typeerror-descriptors-cannot-not-be-created-directly
-# need to add to requirements.txt if it works
-
-# can maybe save disk space by deleting some cached models
-#from transformers import file_utils
-#print(file_utils.default_cache_path)
-
-# ## Load packages
+### Load packages
 import transformers
 import torch
 import datasets
@@ -56,12 +35,9 @@ print(os.getcwd())
 
 
 
-# ## Main parameters
-
-### argparse for command line execution
+### Main parameters
+## argparse for command line execution
 import argparse
-# https://realpython.com/command-line-interfaces-python-argparse/
-# https://docs.python.org/3/library/argparse.html
 
 # Create the parser
 parser = argparse.ArgumentParser(description='Do final run with best hyperparameters (on different languages, datasets, algorithms)')
@@ -222,19 +198,6 @@ if len(df_train) < N_SAMPLE_DEV[-1]:
 N_SAMPLE_DEV = n_sample_dev_filt
 print("Final sample size intervals: ", N_SAMPLE_DEV)
 
-"""
-# tests for code above
-N_SAMPLE_DEV = [1000]
-len_df_train = 500
-n_sample_dev_filt = [sample for sample in N_SAMPLE_DEV if sample <= len_df_train]
-if len_df_train < N_SAMPLE_DEV[-1]:
-  n_sample_dev_filt = n_sample_dev_filt + [len_df_train]
-  if len(n_sample_dev_filt) > 1:
-    if n_sample_dev_filt[-1] == n_sample_dev_filt[-2]:  # if last two sample sizes are duplicates, delete the last one
-      n_sample_dev_filt = n_sample_dev_filt[:-1]
-N_SAMPLE_DEV = n_sample_dev_filt
-print("Final sample size intervals: ", N_SAMPLE_DEV)"""
-
 
 
 LABEL_TEXT_ALPHABETICAL = np.sort(df_cl.label_text.unique())
@@ -286,15 +249,6 @@ elif METHOD == "nli":
     HYPER_PARAMS_LST = [{'lr_scheduler_type': 'linear', 'learning_rate': 2e-5, 'num_train_epochs': MAX_EPOCHS, 'seed': SEED_GLOBAL, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.40, 'weight_decay': 0.05, 'per_device_eval_batch_size': 160}]
 else:
     raise Exception(f"Method {METHOD} not implemented")
-
-#N_SAMPLE_TEST = N_SAMPLE_DEV * len(LANGUAGES)
-#HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 60, 'seed': 42, 'per_device_train_batch_size': 16, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 128}]
-#if (AUGMENTATION == "many2many") and (VECTORIZER == "embeddings-multi"):
-#    HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 10, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 160}]
-#elif (AUGMENTATION == "one2many") and (VECTORIZER == "embeddings-multi"):
-#    HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 40, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 160}]
-#else:
-#    HYPER_PARAMS_LST = [{'lr_scheduler_type': 'constant', 'learning_rate': 2e-5, 'num_train_epochs': 60, 'seed': 42, 'per_device_train_batch_size': 32, 'warmup_ratio': 0.06, 'weight_decay': 0.05, 'per_device_eval_batch_size': 160}]
 
 HYPER_PARAMS_LST = HYPER_PARAMS_LST * len(LANGUAGES)
 print(HYPER_PARAMS_LST)
@@ -456,8 +410,6 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
                                  method=METHOD, label_text_alphabetical=LABEL_TEXT_ALPHABETICAL)
     clean_memory()
 
-
-
     ### metrics
     # https://huggingface.co/docs/transformers/main_classes/trainer#transformers.Trainer.evaluate
     results = trainer.evaluate()  # eval_dataset=encoded_dataset["test"]
@@ -494,16 +446,6 @@ for lang, hyperparams in tqdm.tqdm(zip(LANGUAGES, HYPER_PARAMS_LST), desc="Itera
 
   # update of overall experiment dic
   experiment_details_dic.update({f"experiment_sample_{n_sample_string}_{METHOD}_{MODEL_NAME.split('/')[-1]}_{lang}": experiment_details_dic_lang})
-
-
-  ## stop loop for multiple language case - no separate iterations per language necessary
-  #if "many2anchor" in AUGMENTATION:
-  #  break
-  #if ("multi" in VECTORIZER) and (any(augmentation in AUGMENTATION for augmentation in ["no-nmt-many", "many2many"])):  # "no-nmt-single", "one2anchor", "one2many", "no-nmt-many", "many2anchor", "many2many"
-  #  break
-
-  ## save experiment dic after each new study
-  #joblib.dump(experiment_details_dic_step, f"./{TRAINING_DIRECTORY}/experiment_results_{MODEL_NAME.split('/')[-1]}_{n_sample_string}samp_{HYPERPARAM_STUDY_DATE}.pkl")
 
 
 

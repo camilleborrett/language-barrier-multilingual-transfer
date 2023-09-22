@@ -1,7 +1,5 @@
-#!/usr/bin/env python
-# coding: utf-8
 
-# ## Install and load packages
+### Install and load packages
 import pandas as pd
 import numpy as np
 import os
@@ -17,7 +15,6 @@ np.random.seed(SEED_GLOBAL)
 
 
 # ## Data loading
-#set wd
 print(os.getcwd())
 if "multilingual-repo" not in os.getcwd():
     os.chdir("./multilingual-repo")

@@ -1,5 +1,3 @@
-
-
 # Create the argparse to pass arguments via terminal
 import argparse
 parser = argparse.ArgumentParser(description='Pass arguments via terminal')

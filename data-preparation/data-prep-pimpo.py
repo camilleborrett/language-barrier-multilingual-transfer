@@ -1,10 +1,5 @@
-#!/usr/bin/env python
-# coding: utf-8
 
-# !!! delete API-key before publication !!!
-
-
-# ## Install and load packages
+## Install and load packages
 import pandas as pd
 import numpy as np
 import re
@@ -76,11 +71,11 @@ print(df_cl.language_iso.value_counts())
 ## Get core dataset - one manifesto per row - aggregated values, no sentences
 import requests
 # Parameters
-api_key = "f4aca6cabddc5170b7aaf41f8119af45"
+api_key = "XXX"
 corp_v = "MPDS2021a"  #"MPDS2020a"
 meta_v = "2021-1"   #"2020-1"
 # download
-url = "https://manifesto-project.wzb.eu/tools/api_get_core.json"  # ?api_key=f4aca6cabddc5170b7aaf41f8119af45
+url = "https://manifesto-project.wzb.eu/tools/api_get_core.json"
 params = dict(api_key=api_key, key=corp_v)
 response = requests.get(url=url, params=params)
 data_core = response.json()  # JSON Response Content documentation: https://requests.readthedocs.io/en/master/user/quickstart/#json-response-content
@@ -106,8 +101,6 @@ df_cl["parfam_text"] = df_cl.parfam.map(parfam_map)
 #df_cl = df_cl[df_cl.parfam_text.isin(parfam_paper_lst)]
 
 df_cl["parfam_text"].value_counts()
-
-
 
 
 
@@ -294,13 +287,6 @@ df_test_samp_notopic = df_test.groupby(by="language_iso", as_index=False, group_
 df_train_samp = pd.concat([df_train[df_train.label_text != "no_topic"], df_train_samp_notopic])
 df_test_samp = pd.concat([df_test[df_test.label_text != "no_topic"], df_test_samp_notopic])
 
-## deletable test
-"""n_no_topic_or_topic = int(500 / 2)
-df_train_scenario_samp_ids = df_train.groupby(by="language_iso", as_index=False, group_keys=False).apply(
-    lambda x: pd.concat([x[x.label_text == "no_topic"].sample(n=min(n_no_topic_or_topic, len(x[x.label_text != "no_topic"])), random_state=42)["rn"],
-                         x[x.label_text != "no_topic"].sample(n=min(n_no_topic_or_topic, len(x[x.label_text != "no_topic"])), random_state=42)["rn"]
-                         ]))
-df_train_samp = df_train[df_train["rn"].isin(df_train_scenario_samp_ids)]"""
 
 ## inspect train-test distribution by language
 inspection_lang_dic_train = {}
@@ -329,84 +315,4 @@ df_test_samp.to_csv(f'./data-clean/{file_name}.zip', compression=compression_opt
 print("Script done.")
 
 
-
-
-
-
-
-
-
-### train-test-split
-# ! probably don't need, because will try different split scenarios in analysis script
-# better train test split to avoid data leakage
-# ! copied code - double check and take design decisions
-"""doc_id_train = pd.Series(df_cl.doc_id.unique()).sample(frac=0.70, random_state=SEED_GLOBAL).tolist()
-doc_id_test = df_cl[~df_cl.doc_id.isin(doc_id_train)].doc_id.unique().tolist()
-print(len(doc_id_train))
-print(len(doc_id_test))
-assert sum([doc_id in doc_id_train for doc_id in doc_id_test]) == 0, "should be 0 if doc_id_train and doc_id_test don't overlap"
-df_train = df_cl[df_cl.doc_id.isin(doc_id_train)]
-df_test = df_cl[~df_cl.doc_id.isin(doc_id_train)]
-
-# down sampling the "other" category
-# ! should probably do this by lang
-df_train = df_train.groupby(by="label_text", group_keys=False, as_index=False, sort=False).apply(lambda x: x.sample(n=min(len(x), sum(df_train.label_text != "no_topic")*1), random_state=SEED_GLOBAL))
-df_test = df_test.groupby(by="label_text", group_keys=False, as_index=False, sort=False).apply(lambda x: x.sample(n=min(len(x), sum(df_test.label_text != "no_topic")*10), random_state=SEED_GLOBAL))
-df_cl = pd.concat([df_train, df_test])
-
-# show data distribution
-print(f"Overall train size: {len(df_train)}")
-print(f"Overall test size: {len(df_test)}")
-df_train_test_distribution = pd.DataFrame([df_train.label_text.value_counts().rename("train"), df_test.label_text.value_counts().rename("test"),
-                                                   df_cl.label_text.value_counts().rename("all")]).transpose()
-df_train_test_distribution"""
-
-
-## test how many sentences have same type as preceding / following sentence
-#df_test = df_cl[df_cl.label_text != "no_topic"]
-"""
-test_lst = []
-test_lst2 = []
-test_lst_after = []
-for name_df, group_df in df_cl[df_cl.language_iso == "en"].groupby(by="doc_id", group_keys=False, as_index=False, sort=False):
-  for i in range(len(group_df)):
-    # one preceding text
-    if i == 0 or group_df["label_text"].iloc[i] == "no_topic":
-      continue
-    elif group_df["label_text"].iloc[i] == group_df["label_text"].iloc[i-1]:
-      test_lst.append("same_before")
-    else:
-      test_lst.append(f"different label before: {group_df['label_text'].iloc[i-1]}")
-    # two preceding texts
-    #if i < 2 or group_df["label_text"].iloc[i] == "no_topic":
-    #  continue
-    #elif group_df["label_text"].iloc[i] == group_df["label_text"].iloc[i-1] == group_df["label_text"].iloc[i-2]:
-    #  test_lst2.append("same_two_before")
-    #else:
-    #  test_lst2.append("different_two_before")
-    # for following texts
-    if i >= len(group_df)-1 or group_df["label_text"].iloc[i] == "no_topic":
-      continue
-    elif group_df["label_text"].iloc[i] == group_df["label_text"].iloc[i+1]:
-      test_lst_after.append("same_after")
-    else:
-      test_lst_after.append(f"different label after: {group_df['label_text'].iloc[i+1]}")
-
-print(pd.Series(test_lst).value_counts(normalize=True), "\n")  # SOTU: 75 % of sentences have the same type as the preceeding sentence
-print(pd.Series(test_lst_after).value_counts(normalize=True), "\n")  
-## English
-# in 50% of cases, labeled text (excluding no_topic texts) is preceded or followed by no_topic text
-# in 25% by same label and in 25% by different label (other than no_topic) => no unfair advantage through data leakage if random preceding and following text added!
-## Multilingual: 
-# in 38% of cases, labeled text (excluding no_topic texts) is preceded or followed by no_topic text
-# in 34% by same label and in 28% by different label (other than no_topic) => no unfair advantage through data leakage if random preceding and following text added!
-"""
-
-### test certainty of coders per category
-"""import matplotlib.pyplot as plt
-for name_df, group_df in df_cl.groupby(by="label_text", group_keys=False, as_index=False, sort=False):
-  group_df.certainty_selection.value_counts(bins=5).plot.bar()
-  print(name_df)
-  plt.show()"""
-# coders were relatively certain, less so for immigrant integration neutral (& sceptical)
 

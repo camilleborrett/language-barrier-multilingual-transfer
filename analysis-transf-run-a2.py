@@ -92,12 +92,10 @@ import numpy as np
 import os
 import torch
 import datasets
-
-
 from transformers import AutoTokenizer, AutoConfig, AutoModelForSequenceClassification
 from transformers import TrainingArguments
 
-# ## Load helper functions
+## Load helper functions
 import sys
 sys.path.insert(0, os.getcwd())
 import helpers
@@ -344,7 +342,6 @@ df_cl_concat = df_cl_concat[['label', 'label_text', 'country_iso', 'language_iso
 
 ## save data
 langs_concat = "_".join(LANGUAGE_LST)
-#df_cl_concat.to_csv(f"./results/pimpo/df_pimpo_pred_{TASK}_{METHOD}_{HYPOTHESIS}_{VECTORIZER}_{MAX_SAMPLE_LANG}samp_{langs_concat}_{DATE}.csv", index=False)
 df_cl_concat.to_csv(f"./results/pimpo/df_pimpo_pred_{TASK}_{METHOD}_{MODEL_SIZE}_{HYPOTHESIS}_{VECTORIZER}_{MAX_SAMPLE_LANG}samp_{langs_concat}_{DATE}.zip",
                     compression={"method": "zip", "archive_name": f"df_pimpo_pred_{TASK}_{METHOD}_{MODEL_SIZE}_{HYPOTHESIS}_{VECTORIZER}_{MAX_SAMPLE_LANG}samp_{langs_concat}_{DATE}.csv"}, index=False)
 

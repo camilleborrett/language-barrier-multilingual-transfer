@@ -1,12 +1,5 @@
-
-
 import sys
-# does not work on snellius
-"""if sys.stdin.isatty():
-    EXECUTION_TERMINAL = True
-else:
-    EXECUTION_TERMINAL = False
-print("Terminal execution: ", EXECUTION_TERMINAL, "  (sys.stdin.isatty(): ", sys.stdin.isatty(), ")")"""
+
 if len(sys.argv) > 1:
     EXECUTION_TERMINAL = True
 else:
@@ -14,12 +7,11 @@ else:
 print("Terminal execution: ", EXECUTION_TERMINAL, "  (len(sys.argv): ", len(sys.argv), ")")
 
 
-# ## Load packages
+### Load packages
 import transformers
 import datasets
 import torch
 import optuna
-
 import pandas as pd
 import numpy as np
 import re
@@ -32,12 +24,10 @@ import joblib
 from datetime import date
 from datetime import datetime
 import ast
-
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer, TfidfTransformer
 from sklearn import svm, naive_bayes, metrics, linear_model
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, Normalizer
-
 import spacy
 
 
@@ -51,12 +41,10 @@ if (EXECUTION_TERMINAL==False) and ("multilingual-repo" not in os.getcwd()):
 print(os.getcwd())
 
 
-# ## Main parameters
+### Main parameters
 
 ### argparse for command line execution
 import argparse
-# https://realpython.com/command-line-interfaces-python-argparse/
-# https://docs.python.org/3/library/argparse.html
 
 # Create the parser
 parser = argparse.ArgumentParser(description='Run hyperparameter tuning with different languages, algorithms, datasets')
@@ -201,19 +189,6 @@ if len(df_train) < N_SAMPLE_DEV[-1]:
 N_SAMPLE_DEV = n_sample_dev_filt
 print("Final sample size intervals: ", N_SAMPLE_DEV)
 
-"""
-# tests for code above
-N_SAMPLE_DEV = [1000]
-len_df_train = 500
-n_sample_dev_filt = [sample for sample in N_SAMPLE_DEV if sample <= len_df_train]
-if len_df_train < N_SAMPLE_DEV[-1]:
-  n_sample_dev_filt = n_sample_dev_filt + [len_df_train]
-  if len(n_sample_dev_filt) > 1:
-    if n_sample_dev_filt[-1] == n_sample_dev_filt[-2]:  # if last two sample sizes are duplicates, delete the last one
-      n_sample_dev_filt = n_sample_dev_filt[:-1]
-N_SAMPLE_DEV = n_sample_dev_filt
-print("Final sample size intervals: ", N_SAMPLE_DEV)"""
-
 
 LABEL_TEXT_ALPHABETICAL = np.sort(df_cl.label_text.unique())
 TRAINING_DIRECTORY = f"results/{DATASET}"
@@ -239,9 +214,6 @@ from helpers import compute_metrics_classical_ml, clean_memory
 
 ## functions for scenario data selection and augmentation
 from helpers import select_data_for_scenario_hp_search, select_data_for_scenario_final_test, data_augmentation, sample_for_scenario_hp, choose_preprocessed_text
-
-
-
 
 
 
@@ -316,19 +288,6 @@ def optuna_objective(trial, lang=None, n_sample=None, df_train=None, df=None):  
   else:
       raise Exception("Method not available: ", MODEL_NAME)
   
-  # not choosing a hypothesis template here, but the way of formatting the input text (e.g. with preceding sentence or not). need to keep same object names
-  # if statements determine, whether surrounding sentences are added, or not. Disactivated, because best to always try and test context
-  #if CONTEXT == True:
-  #  text_template_classical_ml = [template for template in list(hypothesis_hyperparams_dic.keys()) if ("not_nli" in template) and ("context" in template)]
-  #elif CONTEXT == False:
-  #text_template_classical_ml = [template for template in list(hypothesis_hyperparams_dic.keys()) if "not_nli" in template]   #and ("context" in template)
-  #else:
-  #  raise Exception(f"CONTEXT variable is {CONTEXT}. Can only be True/False")
-
-  #if len(text_template_classical_ml) >= 2:  # if there is only one reasonable text format for standard_dl
-  #  hypothesis_template = trial.suggest_categorical("hypothesis_template", text_template_classical_ml)
-  #else:
-  #  hypothesis_template = text_template_classical_ml[0]
 
   hyperparams_optuna = {**hyperparams_clf, **hyperparams_vectorizer}  # "hypothesis_template": hypothesis_template
   trial.set_user_attr("hyperparameters_all", hyperparams_optuna)
@@ -494,25 +453,4 @@ for n_sample in N_SAMPLE_DEV:
 #  tracker.stop()  # writes csv file to directory specified during initialisation. Does not overwrite csv, but append new runs
 
 print("Run done.")
-
-
-
-"""
-unique_sentence_id = "rn"
-# also pre-sample for pimpo given high data imbalance. Taking sample of equal size for topics and no-topic
-# sampling on sentence_ids in case sentence was augmented in some scenarios
-n_no_topic_or_topic = int(n_sample / 2)
-df_train_scenario_samp_ids = df_train_scenario.groupby(by="language_iso", as_index=True, group_keys=True).apply(
-    lambda x: pd.concat([x[x.label_text == "no_topic"].sample(n=min(n_no_topic_or_topic, len(x[x.label_text != "no_topic"])), random_state=42)[unique_sentence_id],
-                         x[x.label_text != "no_topic"].sample(n=min(n_no_topic_or_topic, len(x[x.label_text != "no_topic"])), random_state=42)[unique_sentence_id]
-                         ])).squeeze()
-df_test_scenario_samp_ids = df_dev_scenario.groupby(by="language_iso", as_index=True, group_keys=True).apply(
-    lambda x: pd.concat([x[x.label_text == "no_topic"].sample(n=min(n_no_topic_or_topic, len(x[x.label_text != "no_topic"])), random_state=42)[unique_sentence_id],
-                         x[x.label_text != "no_topic"].sample(n=min(n_no_topic_or_topic, len(x[x.label_text != "no_topic"])), random_state=42)[unique_sentence_id]
-                         ])).squeeze()
-df_train_scenario_123 = df_train_scenario[df_train_scenario[unique_sentence_id].isin(df_train_scenario_samp_ids)]
-df_test_scenario_123 = df_dev_scenario[df_dev_scenario[unique_sentence_id].isin(df_test_scenario_samp_ids)]
-"""
-
-
 

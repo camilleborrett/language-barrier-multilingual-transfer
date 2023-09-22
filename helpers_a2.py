@@ -1,4 +1,3 @@
-
 import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
@@ -19,7 +18,6 @@ def load_data(languages=None, task=None, method=None, model_size=None, hypothesi
     df_cl = df[~df.label_text_pred.isna()]
 
     return df_cl, df_train
-
 
 
 #### Calculate predicted or true distribution by meta data
@@ -56,7 +54,6 @@ def calculate_distribution(df_func=None, df_label_col="label_text_pred", exclude
         df_viz_counts = df_viz_counts.sort_values([meta_data, "label_text"])
 
     return df_viz_counts
-
 
 
 ##### calculating correlation
@@ -96,8 +93,6 @@ def compute_correlation(df_viz_true_counts=None, df_viz_pred_counts=None, meta_d
 
     return corr_dic, df_merge
 
-#corr_dic = compute_correlation(df_viz_true_counts=df_viz_true_counts, df_viz_pred_counts=df_viz_pred_counts)
-
 
 ### calculating classical ml metrics
 from sklearn.metrics import balanced_accuracy_score, precision_recall_fscore_support, accuracy_score, classification_report
@@ -126,5 +121,3 @@ def compute_metrics_standard(label_gold=None, label_pred=None):
 
     return metrics
 
-# ! computing labels for all 4 classes here including no-topic (on 3 not possible, because different length)
-#metrics_dic = compute_metrics_standard(label_gold=df_cl.label, label_pred=df_cl.label_pred)

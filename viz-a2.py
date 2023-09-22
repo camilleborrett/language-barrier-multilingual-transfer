@@ -1,11 +1,10 @@
 
-
 import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 import os
 
-# ## Load helper functions
+# Load helper functions
 import sys
 sys.path.insert(0, os.getcwd())
 import helpers_a2

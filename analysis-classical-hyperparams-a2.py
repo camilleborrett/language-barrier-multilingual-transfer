@@ -1,12 +1,5 @@
 
-
 import sys
-# does not work on snellius
-"""if sys.stdin.isatty():
-    EXECUTION_TERMINAL = True
-else:
-    EXECUTION_TERMINAL = False
-print("Terminal execution: ", EXECUTION_TERMINAL, "  (sys.stdin.isatty(): ", sys.stdin.isatty(), ")")"""
 if len(sys.argv) > 1:
     EXECUTION_TERMINAL = True
 else:
@@ -14,12 +7,11 @@ else:
 print("Terminal execution: ", EXECUTION_TERMINAL, "  (len(sys.argv): ", len(sys.argv), ")")
 
 
-# ## Load packages
+### Load packages
 import transformers
 import datasets
 import torch
 import optuna
-
 import pandas as pd
 import numpy as np
 import re
@@ -32,12 +24,10 @@ import joblib
 from datetime import date
 from datetime import datetime
 import ast
-
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer, TfidfTransformer
 from sklearn import svm, naive_bayes, metrics, linear_model
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, Normalizer
-
 import spacy
 
 
@@ -55,8 +45,6 @@ print(os.getcwd())
 
 ### argparse for command line execution
 import argparse
-# https://realpython.com/command-line-interfaces-python-argparse/
-# https://docs.python.org/3/library/argparse.html
 
 # Create the parser
 parser = argparse.ArgumentParser(description='Run hyperparameter tuning with different languages, algorithms, datasets')
@@ -190,19 +178,6 @@ if len(df_train) < N_SAMPLE_DEV[-1]:
 N_SAMPLE_DEV = n_sample_dev_filt
 print("Final sample size intervals: ", N_SAMPLE_DEV)
 
-"""
-# tests for code above
-N_SAMPLE_DEV = [1000]
-len_df_train = 500
-n_sample_dev_filt = [sample for sample in N_SAMPLE_DEV if sample <= len_df_train]
-if len_df_train < N_SAMPLE_DEV[-1]:
-  n_sample_dev_filt = n_sample_dev_filt + [len_df_train]
-  if len(n_sample_dev_filt) > 1:
-    if n_sample_dev_filt[-1] == n_sample_dev_filt[-2]:  # if last two sample sizes are duplicates, delete the last one
-      n_sample_dev_filt = n_sample_dev_filt[:-1]
-N_SAMPLE_DEV = n_sample_dev_filt
-print("Final sample size intervals: ", N_SAMPLE_DEV)"""
-
 
 LABEL_TEXT_ALPHABETICAL = np.sort(df_cl.label_text.unique())
 TRAINING_DIRECTORY = f"results/{DATASET}"
@@ -242,7 +217,7 @@ def optuna_objective(trial, lang=None, n_sample=None, df_train=None, df=None):  
   clean_memory()
   np.random.seed(SEED_GLOBAL)  # setting seed again for safety. not sure why this needs to be run here at each iteration. it should stay constant once set globally?! explanation could be this https://towardsdatascience.com/stop-using-numpy-random-seed-581a9972805f
 
-  # for testing
+  # for testing / debugging
   global df_train_split
   global df_train_scenario
   global df_train_scenario_samp
@@ -312,12 +287,7 @@ def optuna_objective(trial, lang=None, n_sample=None, df_train=None, df=None):  
     ## train-validation split
     # ~50% split cross-val as recommended by https://arxiv.org/pdf/2109.12742.pdf
     test_size = 0.4
-    # test unique splitting with unique sentence_id for manifesto or unique id "rn" column for pimpo
-    #if "manifesto" in DATASET:
-    #    df_train_split_ids, df_dev_ids = train_test_split(df_train.sentence_id.unique(), test_size=test_size, shuffle=True, random_state=random_seed_cross_val)
-    #    df_train_split = df_train[df_train.sentence_id.isin(df_train_split_ids)]
-    #    df_dev = df_train[df_train.sentence_id.isin(df_dev_ids)]
-    #elif "pimpo" in DATASET:
+
     df_train['stratify_by'] = df_train['language_iso'].astype(str) + "_" + df_train['label_text'].astype(str)
     df_train_split, df_dev = train_test_split(df_train, test_size=test_size, shuffle=True, random_state=random_seed_cross_val, stratify=df_train['stratify_by'])
     #df_train_split = df_train[df_train.rn.isin(df_train_split_ids)]
@@ -329,11 +299,6 @@ def optuna_objective(trial, lang=None, n_sample=None, df_train=None, df=None):  
     df_train_scenario = df_train_split[df_train_split.language_iso.isin(LANGUAGE_LST)]
     df_dev_scenario = df_dev[df_dev.language_iso.isin(LANGUAGE_LST)]
 
-    ## take sample in accordance with scenario
-    #df_train_scenario_samp, df_dev_scenario_samp = sample_for_scenario_hp(df_train_scenario=df_train_scenario, df_test_scenario=df_dev_scenario,
-    #                                                                   n_sample=n_sample, test_size=test_size, augmentation=AUGMENTATION, vectorizer=VECTORIZER,
-    #                                                                   seed=random_seed_cross_val, lang=lang, dataset=DATASET)
-    # take equal sample size for no-topic and topic
     n_no_topic_or_topic = int(n_sample / 2)
     df_train_scenario_samp = df_train_scenario.groupby(by="language_iso", as_index=False, group_keys=False).apply(
         lambda x: pd.concat([x[x.label_text == "no_topic"].sample(n=min(int(n_no_topic_or_topic*(1-test_size)), len(x[x.label_text != "no_topic"])), random_state=random_seed_cross_val),
@@ -350,12 +315,6 @@ def optuna_objective(trial, lang=None, n_sample=None, df_train=None, df=None):  
     print("Number of validation examples after sampling: ", len(df_dev_scenario_samp))
     print("Label distribution for df_dev_scenario_samp: ", df_dev_scenario_samp.label_text.value_counts())
     print("\n")
-
-    ### data augmentation on sample for multiling model + MT scenarios
-    #df_train_scenario_samp_augment = data_augmentation(df_train_scenario_samp=df_train_scenario_samp, df_train=df_train_split, lang=lang, language_train=LANGUAGE_LST, language_anchor=LANGUAGE_ANCHOR, augmentation=AUGMENTATION, vectorizer=VECTORIZER, dataset=DATASET)
-    #print("Number of training examples after possible augmentation: ", len(df_train_scenario_samp_augment))
-    #print("Label distribution for df_train_scenario_samp_augment: ", df_train_scenario_samp_augment.label_text.value_counts())
-
 
     clean_memory()
     ## choose correct pre-processed text column here
@@ -426,10 +385,6 @@ def optuna_objective(trial, lang=None, n_sample=None, df_train=None, df=None):  
   return metric
 
 
-
-#warnings.filterwarnings(action='ignore')
-#from requests import HTTPError  # for catching HTTPError, if model download does not work for one trial for some reason
-# catch catch following error. unclear if good to catch this. [W 2022-01-12 14:18:30,377] Trial 9 failed because of the following error: HTTPError('504 Server Error: Gateway Time-out for url: https://huggingface.co/api/models/MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli')
 
 def run_study(n_sample=None, lang=None):
   np.random.seed(SEED_GLOBAL)

@@ -1,17 +1,4 @@
 
-
-import sys
-# does not work on snellius
-"""if sys.stdin.isatty():
-    EXECUTION_TERMINAL = True
-else:
-    EXECUTION_TERMINAL = False
-print("Terminal execution: ", EXECUTION_TERMINAL, "  (sys.stdin.isatty(): ", sys.stdin.isatty(), ")")"""
-"""if len(sys.argv) > 1:
-    EXECUTION_TERMINAL = True
-else:
-    EXECUTION_TERMINAL = False
-print("Terminal execution: ", EXECUTION_TERMINAL, "  (len(sys.argv): ", len(sys.argv), ")")"""
 import sys
 if sys.argv[0] != '/Applications/PyCharm.app/Contents/plugins/python/helpers/pydev/pydevconsole.py':
     EXECUTION_TERMINAL = True
@@ -19,12 +6,12 @@ else:
     EXECUTION_TERMINAL = False
 print("Terminal execution: ", EXECUTION_TERMINAL, "  (sys.argv[0]: ", sys.argv[0], ")")
 
-# ## Load packages
+
+### Load packages
 import transformers
 import datasets
 import torch
 import optuna
-
 import pandas as pd
 import numpy as np
 import re
@@ -38,7 +25,6 @@ from datetime import date
 import time
 import joblib
 import ast
-
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer, TfidfTransformer
 from sklearn import svm, naive_bayes, metrics, linear_model
 from sklearn.model_selection import train_test_split
@@ -57,12 +43,10 @@ print(os.getcwd())
 
 
 
-# ## Main parameters
+### Main parameters
 
 ### argparse for command line execution
 import argparse
-# https://realpython.com/command-line-interfaces-python-argparse/
-# https://docs.python.org/3/library/argparse.html
 
 # Create the parser
 parser = argparse.ArgumentParser(description='Do final run with best hyperparameters (on different languages, datasets, algorithms)')

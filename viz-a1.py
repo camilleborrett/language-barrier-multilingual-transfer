@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
 
 # ## Install and load packages
 import pandas as pd
@@ -15,8 +13,7 @@ np.random.seed(SEED_GLOBAL)
 #metric = "f1_micro"  # for figure with performance per dataset
 
 
-# ## Data loading
-#set wd
+### Data loading
 print(os.getcwd())
 if "multilingual-repo" not in os.getcwd():
     os.chdir("./multilingual-repo")
