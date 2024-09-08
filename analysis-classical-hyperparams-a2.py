@@ -93,7 +93,6 @@ parser.add_argument('-ta', '--task', type=str,
 
 ### choose arguments depending on execution in terminal or in script for testing
 if EXECUTION_TERMINAL == True:
-
   print("Arguments passed via the terminal:")
   # Execute the parse_args() method
   args = parser.parse_args()
