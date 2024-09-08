@@ -1,4 +1,5 @@
-
+#camille test
+#new camille test
 import sys
 if len(sys.argv) > 1:
     EXECUTION_TERMINAL = True
@@ -91,7 +92,8 @@ parser.add_argument('-ta', '--task', type=str,
 
 
 ### choose arguments depending on execution in terminal or in script for testing
-if EXECUTION_TERMINAL == True:
+if EXECUTION_TERMINAL == True:Switched to branch 'test-branch'
+
   print("Arguments passed via the terminal:")
   # Execute the parse_args() method
   args = parser.parse_args()
